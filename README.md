@@ -1,67 +1,95 @@
-# Лабораторная работа №1 - REST-сервис на RESTEasy + Undertow
+# Лабораторная работа №2 - DTO и JSON-ответы
 
-**Тема:** паттерн «Одиночка» (Singleton) и описание REST API.
+**Тема:** шаблон DTO (Data Transfer Object). Замена текстовых ответов на JSON-структуры.
 
 ## Что сделано
 
-1. Создан Maven-проект с тремя модулями-пакетами: `view`, `model`, `controller`.
-2. Подключены зависимости RESTEasy (`resteasy-jaxrs`, `resteasy-undertow`).
-3. В пакете `view.api` описаны:
-   * `ReaderAPI` - методы читателя (`@Path("/reader")`);
-   * `CreatorAPI` - методы создателя/редактора (`@Path("/creator")`);
-   * `AdminAPI` - методы администратора (`@Path("/admin")`);
-   * `SingletonAPI` - JAX-RS `Application`, который отдаёт **ровно по одному экземпляру**
-     каждого API (паттерн «Одиночка»).
-4. В `view.WebAppServer` поднят встроенный веб-сервер Undertow и развёрнуто приложение.
-5. Все методы возвращают текстовые заглушки - по заданию на этом этапе бизнес-логики ещё нет.
+1. В каталоге `view/api` создан пакет `dto`.
+2. Для каждого метода API описаны DTO-классы с полями:
+   * `NewsItemDTO` - полная новость (id, заголовок, аннотация, текст, категория, автор, дата, регион, теги, медиа, рейтинг);
+   * `NewsTitleDTO` - элемент списка новостей;
+   * `NewsListDTO` - обёртка списка (`items` + `total`);
+   * `CategoryDTO`, `CategoryListDTO` - категория и список категорий;
+   * `CommentDTO` - комментарий;
+   * `ActionStatusDTO` - результат действия (создание/удаление/закладка и т.п.);
+   * `UserDTO`, `UserListDTO` - пользователь и список (для админа);
+   * `RoleDTO`, `RoleListDTO` - роль и список ролей.
+3. Добавлены DTO запросов: `CreateNewsRequestDTO`, `UpdateNewsRequestDTO`,
+   `CreateCommentRequestDTO`, `UpdateCommentRequestDTO`, `ReplyCommentRequestDTO`.
+4. Добавлен `AdminAPI` (`/admin`) - администратор из UML (блокировка, роли, модерация).
+4. В каждый метод вместо текста возвращается экземпляр DTO с тестовыми данными.
+5. Подключён `resteasy-jackson2-provider`; в `SingletonAPI` зарегистрирован
+   `JacksonJsonProvider`, поэтому ответы автоматически сериализуются в JSON.
+
+> Важно: провайдер Jackson зарегистрирован явно. Если этого не сделать,
+> RESTEasy не найдёт `MessageBodyWriter` для DTO и вернёт ошибку 500.
 
 ## Структура
 
 ```
-lab1/
+lab2/
 ├── pom.xml
-├── requests.http                  # готовые запросы для проверки API
+├── requests.http
 └── src/main/java/
-    ├── controller/package-info.java   # заготовка модуля контроллера
-    ├── model/package-info.java        # заготовка модуля модели
+    ├── controller/package-info.java
+    ├── model/package-info.java
     └── view/
-        ├── WebAppServer.java          # запуск Undertow (localhost:8080)
+        ├── WebAppServer.java            # localhost:8080
         └── api/
-            ├── ReaderAPI.java
-            ├── CreatorAPI.java
-            ├── AdminAPI.java
-            └── SingletonAPI.java      # Application + Singleton
+            ├── ReaderAPI.java           # GET + комментарии
+            ├── CreatorAPI.java          # создание/изменение/удаление
+            ├── AdminAPI.java            # администрирование (/admin)
+            ├── SingletonAPI.java        # Application + Jackson + CORS
+            └── dto/
+                ├── NewsItemDTO.java
+                ├── NewsTitleDTO.java
+                ├── NewsListDTO.java
+                ├── CategoryDTO.java
+                ├── CategoryListDTO.java
+                ├── CommentDTO.java
+                ├── ActionStatusDTO.java
+                ├── UserDTO.java
+                ├── UserListDTO.java
+                ├── RoleDTO.java
+                ├── RoleListDTO.java
+                ├── CreateNewsRequestDTO.java
+                ├── UpdateNewsRequestDTO.java
+                ├── CreateCommentRequestDTO.java
+                ├── UpdateCommentRequestDTO.java
+                └── ReplyCommentRequestDTO.java
 ```
 
 ## Запуск
 
 ```bash
-cd lab1
+cd lab2
 mvn clean package
 java -jar target/news-app.jar
 ```
 
-Либо в IntelliJ IDEA: открыть `src/main/java/view/WebAppServer.java` и нажать ▶ у `main`.
+Или запустить `view/WebAppServer.java` в IntelliJ IDEA. Сервер слушает **http://localhost:8080**.
 
-Сервер слушает **http://localhost:8080**.
+## Пример ответа
 
-## Проверка в браузере (GET)
+`GET /reader/news/1`:
 
-| Метод | URL |
-|-------|-----|
-| Все новости | http://localhost:8080/reader/news/all |
-| Новость по id | http://localhost:8080/reader/news/1 |
-| Новости за неделю | http://localhost:8080/reader/news/last_week |
-| Поиск | http://localhost:8080/reader/news/search?keywords=java |
-| Новости региона | http://localhost:8080/reader/news/region?region=Москва |
-| Категории | http://localhost:8080/reader/categories |
+```json
+{
+  "id": 1,
+  "title": "Запущена новая версия городского портала",
+  "annotation": "Портал стал быстрее и получил удобный поиск по новостям.",
+  "text": "Городской портал обновился: ...",
+  "category": "Технологии",
+  "author": "Редакция",
+  "publishedAt": "2026-11-09 10:00",
+  "region": "Москва",
+  "tags": ["технологии", "портал", "обновление"],
+  "media": [],
+  "rating": 42
+}
+```
 
-Методы `POST`/`PUT`/`DELETE` проверяются через `requests.http` (IntelliJ IDEA показывает
-кнопку запуска рядом с каждым запросом) или через curl.
+## Проверка
 
-## Пояснение по Singleton
-
-`SingletonAPI` наследует `javax.ws.rs.core.Application` и переопределяет
-`getSingletons()`. Именно этот метод сообщает RESTEasy: «вот готовые объекты,
-создай их один раз и переиспользуй». Если бы мы вернули классы через
-`getClasses()`, контейнер создавал бы новый экземпляр контроллера на каждый запрос.
+* GET-методы открываются в браузере (см. `README` и `requests.http`).
+* POST/PUT/DELETE проверяются через `requests.http` в IntelliJ IDEA.

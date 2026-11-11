@@ -18,17 +18,21 @@
     </properties>
 
     <dependencies>
-        <!-- JAX-RS (RESTEasy) - аннотации @Path, @GET, @POST и т.д. -->
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jaxrs</artifactId>
             <version>${resteasy.version}</version>
         </dependency>
-
-        <!-- Встроенный веб-сервер Undertow, на котором поднимается RESTEasy -->
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-undertow</artifactId>
+            <version>${resteasy.version}</version>
+        </dependency>
+
+        <!-- Провайдер Jackson: превращает DTO в JSON и разбирает JSON из тела запроса -->
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-jackson2-provider</artifactId>
             <version>${resteasy.version}</version>
         </dependency>
     </dependencies>
@@ -45,7 +49,6 @@
                 </configuration>
             </plugin>
 
-            <!-- Собирает запускаемый jar: java -jar target/news-app.jar -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>

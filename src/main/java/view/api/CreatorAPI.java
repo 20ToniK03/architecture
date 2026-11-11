@@ -1,5 +1,13 @@
 package view.api;
 
+import view.api.dto.ActionStatusDTO;
+import view.api.dto.CommentDTO;
+import view.api.dto.CreateNewsRequestDTO;
+import view.api.dto.NewsItemDTO;
+import view.api.dto.ReplyCommentRequestDTO;
+import view.api.dto.UpdateNewsRequestDTO;
+
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
@@ -9,93 +17,124 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
- * API создателя/редактора - лабораторная работа №1.
+ * API создателя/редактора - лабораторная работа №2.
  *
- * <p>Методы изменения данных нельзя открыть простым переходом по ссылке в браузере,
- * поэтому для их проверки используется файл {@code requests.http} (IntelliJ IDEA
- * запускает такие запросы по значку рядом со строкой) или curl.</p>
+ * <p>Методы принимают DTO из тела запроса (JSON) и возвращают DTO-результат.
+ * Данные тестовые: изменения нигде не сохраняются.</p>
  */
 @Path("/creator")
-@Produces(MediaType.TEXT_PLAIN + ";charset=UTF-8")
+@Produces(MediaType.APPLICATION_JSON + ";charset=UTF-8")
 public class CreatorAPI {
 
-    /** Создать новость. POST /creator/news?title=...&text=... */
+    /** Создать новость. POST /creator/news */
     @POST
     @Path("/news")
-    public Response createNews(@QueryParam("title") String title,
-                               @QueryParam("text") String text) {
-        if (isBlank(title)) {
-            return badRequest("Параметр title обязателен");
+    @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
+    public Response createNews(CreateNewsRequestDTO request) {
+        if (request == null || isBlank(request.getTitle())) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ActionStatusDTO.error("Поле title обязательно"))
+                    .build();
         }
-        return ok("Новость «" + title + "» создана (заглушка лабораторной работы №1).");
+
+        NewsItemDTO created = new NewsItemDTO(
+                10L,
+                request.getTitle(),
+                request.getAnnotation(),
+                request.getText(),
+                "Технологии",
+                isBlank(request.getAuthor()) ? "Редакция" : request.getAuthor(),
+                "2026-11-10 12:30",
+                isBlank(request.getRegion()) ? "Москва" : request.getRegion(),
+                request.getTags() == null ? new ArrayList<String>() : request.getTags(),
+                new ArrayList<String>(),
+                0
+        );
+
+        return Response.status(Response.Status.CREATED).entity(created).build();
     }
 
-    /** Редактировать новость. PUT /creator/news/1?title=...&text=... */
+    /** Изменить новость. PUT /creator/news/1 */
     @PUT
     @Path("/news/{id}")
-    public Response updateNews(@PathParam("id") Long id,
-                               @QueryParam("title") String title,
-                               @QueryParam("text") String text) {
-        return ok("Новость с id = " + id + " изменена (заглушка лабораторной работы №1).");
+    @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
+    public Response updateNews(@PathParam("id") Long id, UpdateNewsRequestDTO request) {
+        if (request == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ActionStatusDTO.error("Тело запроса обязательно"))
+                    .build();
+        }
+
+        NewsItemDTO updated = new NewsItemDTO(
+                id,
+                isBlank(request.getTitle()) ? "Заголовок без изменений" : request.getTitle(),
+                request.getAnnotation(),
+                request.getText(),
+                "Технологии",
+                "Редакция",
+                "2026-11-09 10:00",
+                isBlank(request.getRegion()) ? "Москва" : request.getRegion(),
+                request.getTags() == null ? new ArrayList<String>() : request.getTags(),
+                new ArrayList<String>(),
+                42
+        );
+
+        return Response.ok(updated).build();
     }
 
     /** Удалить новость. DELETE /creator/news/1 */
     @DELETE
     @Path("/news/{id}")
     public Response deleteNews(@PathParam("id") Long id) {
-        return ok("Новость с id = " + id + " удалена (заглушка лабораторной работы №1).");
+        return Response.ok(ActionStatusDTO.ok("Новость " + id + " удалена")).build();
     }
 
     /** Прикрепить медиафайл. POST /creator/news/1/media?url=https://... */
     @POST
     @Path("/news/{id}/media")
-    public Response attachMedia(@PathParam("id") Long id,
-                                @QueryParam("url") String url) {
+    public Response attachMedia(@PathParam("id") Long id, @QueryParam("url") String url) {
         if (isBlank(url)) {
-            return badRequest("Параметр url обязателен");
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ActionStatusDTO.error("Параметр url обязателен"))
+                    .build();
         }
-        return ok("К новости " + id + " прикреплён медиафайл " + url
-                + " (заглушка лабораторной работы №1).");
+        return Response.ok(ActionStatusDTO.ok("К новости " + id + " прикреплён файл " + url)).build();
     }
 
     /** Добавить тег. POST /creator/news/1/tags?tag=java */
     @POST
     @Path("/news/{id}/tags")
-    public Response addTag(@PathParam("id") Long id,
-                           @QueryParam("tag") String tag) {
+    public Response addTag(@PathParam("id") Long id, @QueryParam("tag") String tag) {
         if (isBlank(tag)) {
-            return badRequest("Параметр tag обязателен");
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ActionStatusDTO.error("Параметр tag обязателен"))
+                    .build();
         }
-        return ok("К новости " + id + " добавлен тег «" + tag + "» "
-                + "(заглушка лабораторной работы №1).");
+        return Response.ok(ActionStatusDTO.ok("К новости " + id + " добавлен тег «" + tag + "»")).build();
     }
 
-    /** Ответить на комментарий. POST /creator/comments/1/reply?text=... */
+    /** Ответить на комментарий. POST /creator/comments/1/reply */
     @POST
     @Path("/comments/{id}/reply")
-    public Response replyToComment(@PathParam("id") Long id,
-                                   @QueryParam("text") String text) {
-        if (isBlank(text)) {
-            return badRequest("Параметр text обязателен");
+    @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
+    public Response replyToComment(@PathParam("id") Long id, ReplyCommentRequestDTO request) {
+        if (request == null || isBlank(request.getText())) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(ActionStatusDTO.error("Поле text обязательно"))
+                    .build();
         }
-        return ok("Ответ на комментарий " + id + " добавлен "
-                + "(заглушка лабораторной работы №1).");
+
+        CommentDTO comment = new CommentDTO(
+                id, 1L, "Иван", "Комментарий читателя", "2026-11-10 12:00", request.getText());
+
+        return Response.ok(comment).build();
     }
 
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
-    }
-
-    private static Response ok(String message) {
-        return Response.ok(message).type(MediaType.TEXT_PLAIN + ";charset=UTF-8").build();
-    }
-
-    private static Response badRequest(String message) {
-        return Response.status(Response.Status.BAD_REQUEST)
-                .entity(message)
-                .type(MediaType.TEXT_PLAIN + ";charset=UTF-8")
-                .build();
     }
 }

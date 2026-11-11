@@ -1,33 +1,38 @@
 package view.api;
 
+import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
+import org.jboss.resteasy.plugins.interceptors.CorsFilter;
+
 import javax.ws.rs.core.Application;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * JAX-RS-приложение, реализующее паттерн «Одиночка» (Singleton).
+ * JAX-RS-приложение лабораторной работы №2.
  *
- * <p>Класс наследует {@link Application} и возвращает готовые экземпляры API через
- * {@link #getSingletons()}. RESTEasy создаёт эти объекты один раз и переиспользует
- * для обработки всех входящих HTTP-запросов, а не создаёт новый контроллер на каждый
- * запрос (в отличие от {@link Application#getClasses()}).</p>
+ * <p>Помимо единственных экземпляров {@link ReaderAPI} и {@link CreatorAPI} здесь
+ * регистрируется провайдер Jackson: именно он превращает возвращаемые DTO в JSON
+ * (и разбирает JSON из тела запроса в DTO).</p>
  */
 public class SingletonAPI extends Application {
 
-    private final Set<Object> singletons;
+    private final Set<Object> singletons = new LinkedHashSet<Object>();
 
     public SingletonAPI() {
-        Set<Object> instances = new LinkedHashSet<Object>();
-        instances.add(new ReaderAPI());
-        instances.add(new CreatorAPI());
-        instances.add(new AdminAPI());
-        this.singletons = Collections.unmodifiableSet(instances);
+        singletons.add(new ReaderAPI());
+        singletons.add(new CreatorAPI());
+        singletons.add(new AdminAPI());
+
+        singletons.add(new JacksonJsonProvider());
+
+        CorsFilter cors = new CorsFilter();
+        cors.getAllowedOrigins().add("*");
+        cors.setAllowedMethods("GET, POST, PUT, DELETE, OPTIONS");
+        cors.setAllowedHeaders("Content-Type, Accept");
+        cors.setAllowCredentials(false);
+        singletons.add(cors);
     }
 
-    /**
-     * Возвращает единственные экземпляры всех API-контроллеров.
-     */
     @Override
     public Set<Object> getSingletons() {
         return singletons;
