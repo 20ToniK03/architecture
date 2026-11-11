@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Tester - Сервис новостей</title>
+    <style>
+        :root {
+            --bg: #f4f6fb;
+            --surface: #ffffff;
+            --text: #1f2430;
+            --muted: #6b7280;
+            --accent: #2f6fed;
+            --border: #dfe4ee;
+            --green: #1a7f4b;
+            --red: #b42318;
+            --orange: #c05621;
+            --shadow: 0 10px 30px rgba(31, 36, 48, 0.08);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at top left, #e8efff 0, var(--bg) 45%);
+            color: var(--text);
+            font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+            line-height: 1.5;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding: 16px 24px;
+            background: #24292f;
+            color: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ping {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .ping button {
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border-radius: 8px;
+            padding: 7px 14px;
+            font: inherit;
+            cursor: pointer;
+            transition: background .15s ease;
+        }
+
+        .ping button:hover { background: rgba(255, 255, 255, 0.16); }
+
+        .ping input {
+            width: 240px;
+            padding: 7px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border-radius: 8px;
+            font: inherit;
+            font-size: 13px;
+            font-family: ui-monospace, Consolas, "Courier New", monospace;
+        }
+        .ping input::placeholder { color: #9da7b0; }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #6b7280;
+            display: inline-block;
+        }
+        .dot.ok { background: #2da44e; }
+        .dot.fail { background: #f85149; }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 340px minmax(0, 1fr);
+            gap: 22px;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 24px;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        aside .group-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: var(--muted);
+            margin: 16px 0 8px;
+        }
+        aside .group-title:first-child { margin-top: 0; }
+
+        .endpoint {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 7px 9px;
+            font: inherit;
+            font-size: 13px;
+            color: var(--text);
+            cursor: pointer;
+            transition: background .12s ease, border-color .12s ease;
+        }
+        .endpoint:hover { background: #f0f4ff; border-color: #d9e4ff; }
+        .endpoint.active { background: #e5eeff; border-color: var(--accent); }
+        .endpoint .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .method {
+            flex: 0 0 auto;
+            min-width: 52px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: 5px;
+            padding: 2px 6px;
+            color: #fff;
+        }
+        .method.GET { background: #2f6fed; }
+        .method.POST { background: #1a7f4b; }
+        .method.PUT { background: #c05621; }
+        .method.DELETE { background: #b42318; }
+
+        main .request {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        main .request select {
+            flex: 0 0 110px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font: inherit;
+            font-weight: 600;
+            background: #fbfcff;
+        }
+        main .request input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font: inherit;
+            font-family: ui-monospace, Consolas, "Courier New", monospace;
+            font-size: 13px;
+            background: #fbfcff;
+        }
+        main .request input:focus, main .request select:focus, textarea:focus {
+            outline: 2px solid #c9d9ff;
+            border-color: var(--accent);
+        }
+
+        .btn-send {
+            border: 0;
+            background: var(--accent);
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: background .15s ease;
+        }
+        .btn-send:hover { background: #1e4fb8; }
+        .btn-send:disabled { opacity: .6; cursor: wait; }
+
+        textarea {
+            width: 100%;
+            min-height: 90px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-family: ui-monospace, Consolas, "Courier New", monospace;
+            font-size: 13px;
+            background: #fbfcff;
+            resize: vertical;
+            margin-bottom: 16px;
+        }
+        textarea.hidden { display: none; }
+
+        .response {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fbfcff;
+            overflow: hidden;
+        }
+        .resp-meta {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            background: #f6f8fb;
+            font-size: 13px;
+        }
+        .resp-meta .status {
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 999px;
+            color: #fff;
+        }
+        .status.s2 { background: var(--green); }
+        .status.s4, .status.s5 { background: var(--red); }
+        .resp-meta .time { color: var(--muted); }
+        .resp-body {
+            margin: 0;
+            padding: 14px;
+            font-family: ui-monospace, Consolas, "Courier New", monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 120px;
+            max-height: 420px;
+            overflow: auto;
+        }
+        .resp-body.placeholder { color: var(--muted); }
+
+        .hint { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>🧪 API Tester</h1>
+    <div class="ping">
+        <input id="base-url" placeholder="http://localhost:8080" title="Адрес сервера (можно указать вручную)">
+        <button id="btn-ping">Проверить сервер</button>
+        <span class="dot" id="ping-dot"></span>
+        <span id="ping-text">не проверен</span>
+    </div>
+</header>
+
+<div class="layout">
+    <aside class="panel">
+        <p class="hint">Кликните по запросу - он выполнится справа.</p>
+        <div id="endpoints"></div>
+    </aside>
+
+    <main class="panel">
+        <div class="request">
+            <select id="method">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>DELETE</option>
+            </select>
+            <input id="url" placeholder="/reader/news/all">
+            <button class="btn-send" id="btn-send">Отправить</button>
+        </div>
+        <textarea id="body" class="hidden" placeholder='{"title":"Заголовок","text":"Текст"}'></textarea>
+        <div class="response">
+            <div class="resp-meta">
+                <span class="status" id="resp-status">-</span>
+                <span class="time" id="resp-time"></span>
+            </div>
+            <pre class="resp-body placeholder" id="resp-body">Здесь появится ответ сервера.</pre>
+        </div>
+    </main>
+</div>
+
+<script>
+    (function () {
+        "use strict";
+
+        var endpoints = [
+            { group: "Reader", method: "GET", path: "/reader/news/all", desc: "Все новости" },
+            { group: "Reader", method: "GET", path: "/reader/news/1", desc: "Новость по id" },
+            { group: "Reader", method: "GET", path: "/reader/news/last_week", desc: "Новости за неделю" },
+            { group: "Reader", method: "GET", path: "/reader/news/search?keywords=метро", desc: "Поиск по словам" },
+            { group: "Reader", method: "GET", path: "/reader/news/region?region=Москва", desc: "Новости региона" },
+            { group: "Reader", method: "GET", path: "/reader/categories", desc: "Категории" },
+            { group: "Reader", method: "POST", path: "/reader/auth/register?name=Petr&email=petr@example.com&password=pass", desc: "Регистрация" },
+            { group: "Reader", method: "POST", path: "/reader/auth/login?login=maria@example.com&password=pass", desc: "Вход" },
+            { group: "Reader", method: "POST", path: "/reader/news/1/bookmark?userId=2", desc: "В избранное" },
+            { group: "Reader", method: "DELETE", path: "/reader/news/1/bookmark?userId=2", desc: "Убрать из избранного" },
+            { group: "Reader", method: "GET", path: "/reader/favorites?userId=2", desc: "Избранное" },
+            { group: "Reader", method: "POST", path: "/reader/comments", body: '{"newsId":1,"author":"Иван","text":"Тестовый комментарий"}', desc: "Оставить комментарий" },
+            { group: "Reader", method: "PUT", path: "/reader/comments/1", body: '{"text":"Изменённый текст"}', desc: "Изменить комментарий" },
+            { group: "Reader", method: "DELETE", path: "/reader/comments/1", desc: "Удалить комментарий" },
+
+            { group: "Creator", method: "POST", path: "/creator/news", body: '{"title":"Тестовая новость","annotation":"Аннотация","text":"Текст","categoryId":1,"region":"Москва","tags":["тест"]}', desc: "Создать новость" },
+            { group: "Creator", method: "PUT", path: "/creator/news/1", body: '{"title":"Обновлённый заголовок"}', desc: "Изменить новость" },
+            { group: "Creator", method: "DELETE", path: "/creator/news/1", desc: "Удалить новость" },
+            { group: "Creator", method: "POST", path: "/creator/news/7/publish", desc: "Опубликовать (черновик 7)" },
+            { group: "Creator", method: "POST", path: "/creator/news/7/unpublish", desc: "Снять с публикации" },
+            { group: "Creator", method: "POST", path: "/creator/news/6/archive", desc: "В архив" },
+            { group: "Creator", method: "POST", path: "/creator/news/1/tags?tag=java", desc: "Добавить тег" },
+            { group: "Creator", method: "POST", path: "/creator/news/1/media?url=https://example.com/a.jpg", desc: "Прикрепить медиа" },
+
+            { group: "Admin", method: "GET", path: "/admin/users", desc: "Пользователи" },
+            { group: "Admin", method: "GET", path: "/admin/roles", desc: "Роли" },
+            { group: "Admin", method: "POST", path: "/admin/users/2/block", desc: "Заблокировать пользователя" },
+            { group: "Admin", method: "PUT", path: "/admin/users/2/role?role=ADMIN", desc: "Назначить роль" },
+            { group: "Admin", method: "POST", path: "/admin/comments/1/moderate?action=approve", desc: "Модерировать комментарий" }
+        ];
+
+        var methodSelect = document.getElementById("method");
+        var urlInput = document.getElementById("url");
+        var bodyInput = document.getElementById("body");
+        var btnSend = document.getElementById("btn-send");
+        var respStatus = document.getElementById("resp-status");
+        var respTime = document.getElementById("resp-time");
+        var respBody = document.getElementById("resp-body");
+        var pingDot = document.getElementById("ping-dot");
+        var pingText = document.getElementById("ping-text");
+        var baseUrlInput = document.getElementById("base-url");
+
+        function renderEndpoints() {
+            var container = document.getElementById("endpoints");
+            var html = "";
+            var lastGroup = null;
+            endpoints.forEach(function (ep, index) {
+                if (ep.group !== lastGroup) {
+                    html += '<div class="group-title">' + ep.group + '</div>';
+                    lastGroup = ep.group;
+                }
+                html +=
+                    '<button class="endpoint" data-index="' + index + '">' +
+                    '  <span class="method ' + ep.method + '">' + ep.method + '</span>' +
+                    '  <span class="path" title="' + ep.desc + '">' + ep.path + '</span>' +
+                    '</button>';
+            });
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function prettyJson(text) {
+            try {
+                return JSON.stringify(JSON.parse(text), null, 2);
+            } catch (e) {
+                return text;
+            }
+        }
+
+        function fillRequest(ep) {
+            methodSelect.value = ep.method;
+            urlInput.value = ep.path;
+            if (ep.body) {
+                bodyInput.value = ep.body;
+                bodyInput.classList.remove("hidden");
+            } else {
+                bodyInput.value = "";
+                bodyInput.classList.add("hidden");
+            }
+        }
+
+        function setActive(index) {
+            var buttons = document.querySelectorAll(".endpoint");
+            buttons.forEach(function (b) {
+                b.classList.toggle("active", Number(b.getAttribute("data-index")) === index);
+            });
+        }
+
+        function resolve(path) {
+            var base = baseUrlInput.value.trim().replace(/\/+$/, "");
+            return base ? base + path : path;
+        }
+
+        function sendRequest() {
+            var method = methodSelect.value;
+            var url = urlInput.value.trim();
+            var hasBody = method === "POST" || method === "PUT";
+
+            var options = { method: method };
+            if (hasBody && bodyInput.value.trim()) {
+                options.headers = { "Content-Type": "application/json; charset=utf-8" };
+                options.body = bodyInput.value;
+            }
+
+            btnSend.disabled = true;
+            respStatus.textContent = "…";
+            respStatus.className = "status";
+            respTime.textContent = "";
+            respBody.textContent = "Выполняется…";
+            respBody.className = "resp-body";
+
+            var t0 = performance.now();
+            fetch(resolve(url), options).then(function (response) {
+                var ms = (performance.now() - t0).toFixed(1);
+                return response.text().then(function (text) {
+                    respStatus.textContent = response.status;
+                    respStatus.className = "status s" + String(response.status).charAt(0);
+                    respTime.textContent = ms + " мс · " + (response.status >= 200 && response.status < 300 ? "OK" : "ошибка");
+                    respBody.textContent = text ? prettyJson(text) : "(пустой ответ)";
+                });
+            }).catch(function (error) {
+                var ms = (performance.now() - t0).toFixed(1);
+                respStatus.textContent = "ERR";
+                respStatus.className = "status s5";
+                respTime.textContent = ms + " мс";
+                respBody.textContent = "Не удалось выполнить запрос: " + error.message;
+            }).finally(function () {
+                btnSend.disabled = false;
+            });
+        }
+
+        function ping() {
+            var t0 = performance.now();
+            pingText.textContent = "проверка…";
+            pingDot.className = "dot";
+            fetch(resolve("/reader/categories")).then(function (r) {
+                var ms = (performance.now() - t0).toFixed(0);
+                if (r.ok) {
+                    pingDot.className = "dot ok";
+                    pingText.textContent = "сервер доступен · " + ms + " мс";
+                } else {
+                    pingDot.className = "dot fail";
+                    pingText.textContent = "сервер ответил " + r.status;
+                }
+            }).catch(function () {
+                pingDot.className = "dot fail";
+                pingText.textContent = "сервер недоступен";
+            });
+        }
+
+        document.getElementById("endpoints").addEventListener("click", function (event) {
+            var button = event.target.closest(".endpoint");
+            if (!button) {
+                return;
+            }
+            var index = Number(button.getAttribute("data-index"));
+            var ep = endpoints[index];
+            fillRequest(ep);
+            setActive(index);
+            sendRequest();
+        });
+
+        btnSend.addEventListener("click", sendRequest);
+        document.getElementById("btn-ping").addEventListener("click", ping);
+
+        urlInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                sendRequest();
+            }
+        });
+
+        var defaultBase = (location.protocol === "http:" || location.protocol === "https:")
+            ? location.origin
+            : "http://localhost:8080";
+        baseUrlInput.value = defaultBase;
+
+        baseUrlInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                ping();
+            }
+        });
+
+        renderEndpoints();
+        ping();
+    }());
+</script>
+</body>
+</html>
