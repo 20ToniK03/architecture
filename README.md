@@ -1,99 +1,157 @@
-# Лабораторная работа №3 - бизнес-объекты по UML, паттерн «Фасад», AdminAPI
+# Сервис новостей (news-app)
 
-**Тема:** полная предметная модель из UML-диаграммы классов, `FacadeController`,
-поиск по ключевым словам, роль администратора, раздача статики и клиентский
-веб-интерфейс.
+REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это **один проект**, который
+развивается от лабораторной работы к лабораторной: каждый коммит добавляет следующий
+слой поверх предыдущего (а не создаёт новый проект с нуля).
 
-## Что реализовано по UML
+## Последовательность работ
 
-### Иерархия пользователей (`controller/person`, `controller/interfaces`)
+| Коммит | Работа | Что добавляется | Паттерны |
+|--------|--------|-----------------|----------|
+| 1 | **ЛР1** | Maven-проект, 3 пакета (`view`/`controller`/`model`), REST API (`ReaderAPI`, `CreatorAPI`, `AdminAPI` + `SingletonAPI`), веб-сервер Undertow. Методы возвращают текстовые заглушки. | Singleton |
+| 2 | **ЛР2** | Пакет `view/api/dto`, DTO на каждый метод, провайдер Jackson. Методы возвращают DTO → JSON. | DTO |
+| 3 | **ЛР3** | Бизнес-объекты (`NewsBO`, `CategoryBO`, иерархия `Person → User → Journalist/Admin`, `Role`, `Favorite`, `Tag`…), `FacadeController`, поиск по ключевым словам, статика + веб-интерфейс. | Facade, MVC |
+| - | **ЛР4** | (будет добавлена позже) | - |
 
-| UML | Класс | Ключевые методы |
-|-----|-------|-----------------|
-| `IAuthorizable` | `interfaces/IAuthorizable` | `login`, `logout`, `isAuthorized` |
-| `ICommentable` | `interfaces/ICommentable` | `addComment`, `removeComment`, `getComments` |
-| `IPublishable` | `interfaces/IPublishable` | `publish`, `unpublish`, `archive`, `isPublished` |
-| `Person` (abstract) | `person/PersonBO` | `getId`, `getName`, `getEmail`, `login` |
-| `Guest` | `person/GuestBO` | `register(RegistrationData)` |
-| `User` | `person/UserBO` | `addToFavorites`, `removeFromFavorites` |
-| `Journalist` | `person/JournalistBO` | `createNews`, `editNews`, `deleteNews` |
-| `Admin` | `person/AdminBO` | `blockUser`, `assignRole`, `moderateComment` |
+---
 
-### Сущности контента
+## Лабораторная работа №1 - REST API и Singleton
 
-| UML | Класс | Связи (из UML) |
-|-----|-------|----------------|
-| `News` | `news/NewsBO` (реализует `IPublishable`, `ICommentable`) | `News *-- Comment`, `News 0..* -- 1..* Category`, `News 0..* -- 0..* Tag` |
-| `NewsStatus` | `news/NewsStatus` (enum) | `DRAFT / PUBLISHED / EDITED / ARCHIVED / DELETED` |
-| `Comment` | `comment/CommentBO` | `User 1 -- 0..* Comment` |
-| `Category` | `category/CategoryBO` | `Category o-- 0..* News` |
-| `Tag` | `tag/TagBO` | - |
-| `Favorite` | `favorite/FavoriteBO` | `User 1 -- 0..* Favorite` |
-| `Role` | `role/RoleBO` | `User 0..* -- 0..* Role` |
+**Цель:** создать каркас REST-сервиса.
 
-### Жизненный цикл новости (диаграмма состояний)
+1. Создан Maven-проект с тремя модулями-пакетами: `view`, `model`, `controller`.
+2. Подключены зависимости RESTEasy (`resteasy-jaxrs`, `resteasy-undertow`).
+3. В `view/api` описаны:
+   * `ReaderAPI` (`/reader`) - методы читателя;
+   * `CreatorAPI` (`/creator`) - методы создателя;
+   * `AdminAPI` (`/admin`) - методы администратора;
+   * `SingletonAPI` - JAX-RS `Application`, отдающий **ровно по одному экземпляру**
+     каждого API (паттерн «Одиночка»).
+4. `view.WebAppServer` поднимает встроенный сервер Undertow и разворачивает `SingletonAPI`.
+5. Все методы возвращают текстовые заглушки (бизнес-логики ещё нет).
 
-`DRAFT → PUBLISHED → EDITED → PUBLISHED → DELETED` (+ `ARCHIVED` из диаграммы
-деятельности). Реализован через `IPublishable` (`publish`/`unpublish`/`archive`)
-и endpoints `/creator/news/{id}/publish`, `/unpublish`, `/archive`.
+**Проверка:** GET-методы открываются в браузере, POST/PUT/DELETE - через `requests.http` или curl.
 
-### Алгоритм создания новости (диаграмма коммуникаций)
+---
 
-Фасад выполняет `validate → generateId → create News → linkCategories → save`
-(создание - через `JournalistBO.createNews`, связь категорий/тегов и сохранение -
-в фасаде, как «Сервис контента»).
+## Лабораторная работа №2 - DTO и JSON
 
-## Архитектура
+**Цель:** заменить текстовые ответы на структуры данных (JSON).
+
+1. В `view/api` создан пакет `dto`.
+2. Для каждого метода описаны DTO-классы с полями:
+   * `NewsItemDTO`, `NewsTitleDTO`, `NewsListDTO` - новость, элемент списка, обёртка списка;
+   * `CategoryDTO`, `CategoryListDTO` - категория и список;
+   * `CommentDTO` - комментарий;
+   * `ActionStatusDTO` - результат действия;
+   * `UserDTO`, `UserListDTO`, `RoleDTO`, `RoleListDTO` - для администратора;
+   * DTO запросов: `CreateNewsRequestDTO`, `UpdateNewsRequestDTO`,
+     `CreateCommentRequestDTO`, `UpdateCommentRequestDTO`, `ReplyCommentRequestDTO`.
+3. В каждом методе вместо текста возвращается экземпляр DTO с тестовыми данными.
+4. Подключён `resteasy-jackson2-provider`; в `SingletonAPI` явно зарегистрирован
+   `JacksonJsonProvider` - без него RESTEasy не найдёт `MessageBodyWriter` для DTO (ошибка 500).
+
+**Проверка:** в браузере возвращается JSON-структура, а не текст.
+
+---
+
+## Лабораторная работа №3 - бизнес-объекты и Фасад
+
+**Цель:** отделить бизнес-логику от представления через фасад.
+
+1. В `controller` описаны бизнес-объекты (из UML-диаграммы классов):
+   * интерфейсы `IAuthorizable`, `ICommentable`, `IPublishable`;
+   * иерархия `PersonBO → GuestBO/UserBO → JournalistBO/AdminBO`;
+   * сущности `NewsBO` (со статусами `DRAFT/PUBLISHED/EDITED/ARCHIVED/DELETED`),
+     `CommentBO`, `CategoryBO`, `TagBO`, `FavoriteBO`, `RoleBO`;
+   * `RegistrationData`, `NewsData` - входные данные методов.
+2. Описан `FacadeController`:
+   * скрывает BO и хранилище от API;
+   * принимает DTO запросов и возвращает DTO ответов;
+   * реализует **поиск новостей по ключевым словам** с объединением результатов из
+     текста новостей и названий категорий;
+   * выполняет CRUD новостей, комментариев, избранного и администрирование.
+3. `ReaderAPI`, `CreatorAPI`, `AdminAPI` переведены на фасад (без прямого доступа к данным).
+4. В `model` - хранилище `InMemoryStore<T>` и генератор `IdSequence`.
+5. Сервер настроен на раздачу статики (`/static`), добавлен клиентский веб-интерфейс.
+
+**Проверка:** клиентский интерфейс на `http://localhost:8080/`, все запросы - в `requests.http` или через тестер API (`/static/tester.html`).
+
+---
+
+## Полный API (по итогам ЛР1-3)
+
+### ReaderAPI - `/reader`
+
+| Метод | Путь | Ответ | Описание |
+|-------|------|-------|----------|
+| GET | `/news/all` | `NewsListDTO` | все новости |
+| GET | `/news/{id}` | `NewsItemDTO` | новость по id |
+| GET | `/news/last_week` | `NewsListDTO` | за 7 дней |
+| GET | `/news/search?keywords=` | `NewsListDTO` | поиск (текст + категория) |
+| GET | `/news/region?region=` | `NewsListDTO` | по региону |
+| GET | `/categories` | `CategoryListDTO` | категории |
+| POST | `/auth/register?name=&email=&password=` | `UserDTO` | регистрация |
+| POST | `/auth/login?login=&password=` | `ActionStatusDTO` | вход |
+| POST | `/news/{id}/bookmark?userId=` | `ActionStatusDTO` | в избранное |
+| DELETE | `/news/{id}/bookmark?userId=` | `ActionStatusDTO` | убрать из избранного |
+| GET | `/favorites?userId=` | `NewsListDTO` | избранное |
+| POST | `/comments` | `CommentDTO` | комментарий |
+| PUT | `/comments/{id}` | `CommentDTO` | изменить комментарий |
+| DELETE | `/comments/{id}` | `ActionStatusDTO` | удалить комментарий |
+
+### CreatorAPI - `/creator`
+
+| Метод | Путь | Ответ | Описание |
+|-------|------|-------|----------|
+| POST | `/news` | `NewsItemDTO` | создать новость |
+| PUT | `/news/{id}` | `NewsItemDTO` | изменить новость |
+| DELETE | `/news/{id}` | `ActionStatusDTO` | удалить новость |
+| POST | `/news/{id}/publish` | `NewsItemDTO` | опубликовать |
+| POST | `/news/{id}/unpublish` | `NewsItemDTO` | снять с публикации |
+| POST | `/news/{id}/archive` | `NewsItemDTO` | в архив |
+| POST | `/news/{id}/tags?tag=` | `ActionStatusDTO` | добавить тег |
+| POST | `/news/{id}/media?url=` | `ActionStatusDTO` | прикрепить медиа |
+
+### AdminAPI - `/admin`
+
+| Метод | Путь | Ответ | Описание |
+|-------|------|-------|----------|
+| GET | `/users` | `UserListDTO` | пользователи |
+| GET | `/roles` | `RoleListDTO` | роли |
+| POST | `/users/{id}/block` | `ActionStatusDTO` | заблокировать |
+| PUT | `/users/{id}/role?role=` | `ActionStatusDTO` | назначить роль |
+| POST | `/comments/{id}/moderate?action=` | `ActionStatusDTO` | модерировать комментарий |
+
+---
+
+## Структура проекта
 
 ```
-lab3/src/main/java/
-├── model/
-│   ├── InMemoryStore.java      # хранилище «в памяти»
-│   └── IdSequence.java         # генератор id
-├── controller/
-│   ├── FacadeController.java   # фасад (DTO <-> BO)
-│   ├── interfaces/             # IAuthorizable, ICommentable, IPublishable
-│   ├── person/                 # PersonBO, GuestBO, UserBO, JournalistBO, AdminBO, RegistrationData
-│   ├── news/                   # NewsBO, NewsStatus, NewsData
-│   ├── comment/CommentBO.java
-│   ├── category/CategoryBO.java
-│   ├── tag/TagBO.java
-│   ├── favorite/FavoriteBO.java
-│   └── role/RoleBO.java
-└── view/
-    ├── WebAppServer.java       # localhost:8080 + раздача /static
-    └── api/
-        ├── ReaderAPI.java      # Гость/Пользователь (/reader)
-        ├── CreatorAPI.java     # Журналист (/creator)
-        ├── AdminAPI.java       # Администратор (/admin)
-        ├── StaticPageAPI.java
-        ├── SingletonAPI.java
-        └── dto/...
+news-app/
+├── pom.xml
+├── requests.http
+└── src/main/
+    ├── java/
+    │   ├── model/                # InMemoryStore, IdSequence
+    │   ├── controller/           # BO + FacadeController + interfaces
+    │   └── view/
+    │       ├── WebAppServer.java # запуск Undertow (localhost:8080)
+    │       └── api/              # ReaderAPI, CreatorAPI, AdminAPI, StaticPageAPI, SingletonAPI, dto/
+    └── resources/static/         # index.html (UI), tester.html (тестер API)
 ```
-
-## API по ролям
-
-* **ReaderAPI** (`/reader`): новости, поиск, категории, регистрация/вход,
-  избранное (добавить/убрать/список), комментарии.
-* **CreatorAPI** (`/creator`): создание/изменение/удаление новости,
-  публикация/снятие/архив, теги, медиа.
-* **AdminAPI** (`/admin`): список пользователей и ролей, блокировка,
-  назначение роли, модерация комментариев.
 
 ## Запуск
 
 ```bash
-cd lab3
 mvn clean package
 java -jar target/news-app.jar
 ```
 
 * Клиентский интерфейс: **http://localhost:8080/**
-* Статика: http://localhost:8080/static/index.html
+* Тестер API: **http://localhost:8080/static/tester.html**
 
-## Проверка
-
-Все запросы продублированы в `requests.http`. Тестовые учётные записи:
+## Тестовые учётные записи
 
 | Роль | Логин | Пароль |
 |------|-------|--------|
@@ -103,70 +161,36 @@ java -jar target/news-app.jar
 
 ## Тестирование через curl (Windows)
 
-Сервер должен быть запущен: `java -jar target/news-app.jar`.
-
-В PowerShell и cmd используй именно **`curl.exe`** (в PowerShell голый `curl` — это
-алиас на `Invoke-WebRequest`, он не подходит). Кириллицу в параметрах подставляй
-в URL-кодировке (метро = `%D0%BC%D0%B5%D1%82%D1%80%D0%BE`, Москва =
-`%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B0`).
-
-### Читатель — GET (можно просто открыть в браузере)
+Сервер должен быть запущен. Используй `curl.exe` (в PowerShell голый `curl` - алиас
+на `Invoke-WebRequest`). Кириллицу подставляй в URL-кодировке (метро = `%D0%BC%D0%B5%D1%82%D1%80%D0%BE`).
 
 ```powershell
+# GET - можно открыть в браузере
 curl.exe "http://localhost:8080/reader/news/all"
 curl.exe "http://localhost:8080/reader/news/1"
 curl.exe "http://localhost:8080/reader/news/last_week"
 curl.exe "http://localhost:8080/reader/news/search?keywords=%D0%BC%D0%B5%D1%82%D1%80%D0%BE"
-curl.exe "http://localhost:8080/reader/news/region?region=%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B0"
 curl.exe "http://localhost:8080/reader/categories"
-curl.exe "http://localhost:8080/reader/favorites?userId=2"
-```
+curl.exe "http://localhost:8080/admin/users"
 
-### Регистрация и вход — POST
-
-```powershell
+# Регистрация и вход
 curl.exe -X POST "http://localhost:8080/reader/auth/register?name=Petr&email=petr@example.com&password=pass"
 curl.exe -X POST "http://localhost:8080/reader/auth/login?login=maria@example.com&password=pass"
-curl.exe -X POST "http://localhost:8080/reader/auth/login?login=maria@example.com&password=wrong"
-```
 
-### Избранное — POST / DELETE
-
-```powershell
-curl.exe -X POST   "http://localhost:8080/reader/news/1/bookmark?userId=2"
-curl.exe -X DELETE "http://localhost:8080/reader/news/1/bookmark?userId=2"
-```
-
-### Комментарии — POST / PUT / DELETE
-
-```powershell
+# Комментарии
 curl.exe -X POST "http://localhost:8080/reader/comments" -H "Content-Type: application/json" -d '{"newsId":1,"author":"Ivan","text":"Nice!"}'
 curl.exe -X PUT  "http://localhost:8080/reader/comments/1" -H "Content-Type: application/json" -d '{"text":"Fixed"}'
 curl.exe -X DELETE "http://localhost:8080/reader/comments/1"
-```
 
-### Журналист — новости
-
-```powershell
-curl.exe -X POST "http://localhost:8080/creator/news" -H "Content-Type: application/json" -d '{"title":"Test","text":"Body","categoryId":1,"region":"Moscow","tags":["test"]}'
+# Новости (создатель)
+curl.exe -X POST "http://localhost:8080/creator/news" -H "Content-Type: application/json" -d '{"title":"Test","text":"Body","categoryId":1}'
 curl.exe -X PUT    "http://localhost:8080/creator/news/1" -H "Content-Type: application/json" -d '{"title":"New title"}'
 curl.exe -X DELETE "http://localhost:8080/creator/news/1"
-curl.exe -X POST "http://localhost:8080/creator/news/7/publish"
-curl.exe -X POST "http://localhost:8080/creator/news/7/unpublish"
-curl.exe -X POST "http://localhost:8080/creator/news/6/archive"
-curl.exe -X POST "http://localhost:8080/creator/news/1/tags?tag=java"
-curl.exe -X POST "http://localhost:8080/creator/news/1/media?url=https://example.com/a.jpg"
-```
 
-### Администратор
-
-```powershell
-curl.exe "http://localhost:8080/admin/users"
-curl.exe "http://localhost:8080/admin/roles"
+# Администратор
 curl.exe -X POST "http://localhost:8080/admin/users/2/block"
 curl.exe -X PUT  "http://localhost:8080/admin/users/2/role?role=ADMIN"
-curl.exe -X POST "http://localhost:8080/admin/comments/1/moderate?action=approve"
 ```
 
-> В **cmd** одинарные кавычки для JSON не работают — используй двойные с
+> В **cmd** одинарные кавычки для JSON не работают - используй двойные с
 > экранированием: `curl.exe -X POST ... -d "{\"title\":\"Test\",\"categoryId\":1}"`.
