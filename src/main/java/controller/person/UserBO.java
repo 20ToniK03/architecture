@@ -1,6 +1,5 @@
 package controller.person;
 
-import controller.news.NewsBO;
 import controller.favorite.FavoriteBO;
 import controller.role.RoleBO;
 
@@ -28,24 +27,24 @@ public class UserBO extends PersonBO {
     }
 
     /** Добавить новость в избранное (метод {@code addToFavorites} из UML). */
-    public void addToFavorites(NewsBO news) {
+    public void addToFavorites(long newsId) {
         for (FavoriteBO favorite : favorites) {
-            if (sameNews(favorite.getNews(), news)) {
+            if (favorite.getNewsId() != null && favorite.getNewsId() == newsId) {
                 return;
             }
         }
-        favorites.add(new FavoriteBO(null, new Date(), news));
+        favorites.add(new FavoriteBO(null, new Date(), newsId));
     }
 
     /** Удалить новость из избранного (метод {@code removeFromFavorites} из UML). */
-    public void removeFromFavorites(NewsBO news) {
-        favorites.removeIf(favorite -> sameNews(favorite.getNews(), news));
+    public void removeFromFavorites(long newsId) {
+        favorites.removeIf(favorite -> favorite.getNewsId() != null && favorite.getNewsId() == newsId);
     }
 
     /** Проверить, есть ли новость в избранном. */
-    public boolean isFavorite(NewsBO news) {
+    public boolean isFavorite(long newsId) {
         for (FavoriteBO favorite : favorites) {
-            if (sameNews(favorite.getNews(), news)) {
+            if (favorite.getNewsId() != null && favorite.getNewsId() == newsId) {
                 return true;
             }
         }
@@ -64,13 +63,6 @@ public class UserBO extends PersonBO {
         }
         roles.add(role);
         return true;
-    }
-
-    private static boolean sameNews(NewsBO first, NewsBO second) {
-        if (first == null || second == null) {
-            return first == second;
-        }
-        return first.getId() != null && first.getId().equals(second.getId());
     }
 
     public Date getRegistrationDate() {

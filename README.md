@@ -11,7 +11,7 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 | 1 | **ЛР1** | Maven-проект, 3 пакета (`view`/`controller`/`model`), REST API (`ReaderAPI`, `CreatorAPI`, `AdminAPI` + `SingletonAPI`), веб-сервер Undertow. Методы возвращают текстовые заглушки. | Singleton |
 | 2 | **ЛР2** | Пакет `view/api/dto`, DTO на каждый метод, провайдер Jackson. Методы возвращают DTO → JSON. | DTO |
 | 3 | **ЛР3** | Бизнес-объекты (`NewsBO`, `CategoryBO`, иерархия `Person → User → Journalist/Admin`, `Role`, `Favorite`, `Tag`…), `FacadeController`, поиск по ключевым словам, статика + веб-интерфейс. | Facade, MVC |
-| - | **ЛР4** | (будет добавлена позже) | - |
+| 4 | **ЛР4** | Интерфейс `NewsInterface`, контроллер `NewsController`, абстрактный `NewsDecorator` и `PositiveNewsDecorator` (фильтрация позитивных новостей); фасад выбирает декоратор по дате. | Decorator |
 
 ---
 
@@ -79,7 +79,30 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 
 ---
 
-## Полный API (по итогам ЛР1-3)
+## Лабораторная работа №4 - паттерн «Декоратор»
+
+**Цель:** дополнить поведение контроллера новостей, не меняя его код.
+
+1. Создан интерфейс `NewsInterface` - фиксирует набор методов контроллера новостей.
+2. `NewsController` реализует `NewsInterface` - вся логика работы с новостями,
+   категориями и тегами вынесена из фасада в этот контроллер.
+3. Создан абстрактный декоратор `NewsDecorator` - реализует `NewsInterface`, хранит
+   внутри декорируемый контроллер и делегирует ему все вызовы.
+4. Создан `PositiveNewsDecorator` - наследник декоратора, который дополняет методы
+   выдачи списка новостей фильтрацией: новости с «негативными» словами в заголовке
+   (катастрофа, кризис, авария, пожар, война, трагедия) исключаются из результата.
+5. В `FacadeController`:
+   * добавлен метод `isEndOfYearNear()` - проверяет, осталось ли до конца года меньше двух месяцев;
+   * поле контроллера новостей заменено на интерфейс `NewsInterface`;
+   * при создании контроллера, если до конца года меньше двух месяцев, создаётся
+     `PositiveNewsDecorator`, иначе - обычный `NewsController`.
+
+**Проверка:** когда декоратор активен, негативная новость «Кризис на рынке
+недвижимости» не попадает в ленту (`GET /reader/news/all`).
+
+---
+
+## Полный API (по итогам ЛР1-4)
 
 ### ReaderAPI - `/reader`
 
@@ -134,7 +157,11 @@ news-app/
 └── src/main/
     ├── java/
     │   ├── model/                # InMemoryStore, IdSequence
-    │   ├── controller/           # BO + FacadeController + interfaces
+    │   ├── controller/           # FacadeController + бизнес-объекты
+    │   │   ├── news/             # NewsBO, NewsController, NewsInterface, NewsData, NewsStatus
+    │   │   │   └── decor/        # NewsDecorator, PositiveNewsDecorator
+    │   │   ├── person/           # PersonBO, GuestBO, UserBO, JournalistBO, AdminBO
+    │   │   └── ...               # comment/, category/, tag/, favorite/, role/, interfaces/
     │   └── view/
     │       ├── WebAppServer.java # запуск Undertow (localhost:8080)
     │       └── api/              # ReaderAPI, CreatorAPI, AdminAPI, StaticPageAPI, SingletonAPI, dto/

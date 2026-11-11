@@ -7,12 +7,12 @@ import java.util.Date;
 /**
  * Бизнес-объект «Комментарий» (UML: {@code Comment}).
  *
- * <p>Комментарий является частью новости (композиция {@code News *-- Comment})
- * и имеет автора ({@code User 1 -- 0..* Comment}).</p>
+ * <p>Хранит ссылку на новость ({@code newsId}) и автора ({@code User 1 -- 0..* Comment}).</p>
  */
 public class CommentBO {
 
     private Long id;
+    private Long newsId;
     private String text;
     private Date createdAt;
     private UserBO author;
@@ -21,8 +21,9 @@ public class CommentBO {
     public CommentBO() {
     }
 
-    public CommentBO(Long id, String text, Date createdAt, UserBO author) {
+    public CommentBO(Long id, Long newsId, String text, Date createdAt, UserBO author) {
         this.id = id;
+        this.newsId = newsId;
         this.text = text;
         this.createdAt = createdAt;
         this.author = author;
@@ -40,6 +41,14 @@ public class CommentBO {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getNewsId() {
+        return newsId;
+    }
+
+    public void setNewsId(Long newsId) {
+        this.newsId = newsId;
     }
 
     public String getText() {

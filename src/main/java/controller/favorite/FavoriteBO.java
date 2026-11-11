@@ -1,7 +1,5 @@
 package controller.favorite;
 
-import controller.news.NewsBO;
-
 import java.util.Date;
 
 /**
@@ -12,15 +10,15 @@ public class FavoriteBO {
 
     private Long id;
     private Date addedAt;
-    private NewsBO news;
+    private Long newsId;
 
     public FavoriteBO() {
     }
 
-    public FavoriteBO(Long id, Date addedAt, NewsBO news) {
+    public FavoriteBO(Long id, Date addedAt, Long newsId) {
         this.id = id;
         this.addedAt = addedAt;
-        this.news = news;
+        this.newsId = newsId;
     }
 
     public Long getId() {
@@ -39,11 +37,11 @@ public class FavoriteBO {
         this.addedAt = addedAt;
     }
 
-    public NewsBO getNews() {
-        return news;
+    public Long getNewsId() {
+        return newsId;
     }
 
-    public void setNews(NewsBO news) {
-        this.news = news;
+    public void setNewsId(Long newsId) {
+        this.newsId = newsId;
     }
 }
