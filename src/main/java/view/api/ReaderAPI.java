@@ -1,5 +1,7 @@
 package view.api;
 
+import controller.FacadeController;
+import controller.person.RegistrationData;
 import view.api.dto.ActionStatusDTO;
 import view.api.dto.CategoryDTO;
 import view.api.dto.CategoryListDTO;
@@ -9,6 +11,7 @@ import view.api.dto.NewsItemDTO;
 import view.api.dto.NewsListDTO;
 import view.api.dto.NewsTitleDTO;
 import view.api.dto.UpdateCommentRequestDTO;
+import view.api.dto.UserDTO;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -22,183 +25,181 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
- * API читателя - лабораторная работа №2.
+ * API читателя (актёры «Гость» и «Пользователь») - лабораторная работа №3.
  *
- * <p>Отличие от первой работы: каждый метод возвращает не строку, а DTO-объект.
- * Благодаря провайдеру Jackson RESTEasy автоматически сериализует DTO в JSON.
- * Данные пока тестовые - «зашиты» прямо в методах, базы данных ещё нет.</p>
+ * <p>Просмотр/поиск/чтение новостей, регистрация/авторизация, комментарии
+ * и избранное - через {@link FacadeController}.</p>
  */
 @Path("/reader")
 @Produces(MediaType.APPLICATION_JSON + ";charset=UTF-8")
 public class ReaderAPI {
 
-    /** Все новости. GET /reader/news/all */
+    /** Идентификатор тестового пользователя «Иван Петров» (для закладок). */
+    private static final long DEFAULT_USER_ID = 2L;
+
+    private final FacadeController facade = FacadeController.getInstance();
+
     @GET
     @Path("/news/all")
     public Response getAllNews() {
-        List<NewsTitleDTO> items = new ArrayList<NewsTitleDTO>();
-        items.add(new NewsTitleDTO(1L, "Запущена новая версия городского портала",
-                "Технологии", "2026-11-09 10:00"));
-        items.add(new NewsTitleDTO(2L, "Открытие новой станции метро",
-                "Общество", "2026-11-07 18:30"));
-        items.add(new NewsTitleDTO(3L, "Чемпионат города по плаванию",
-                "Спорт", "2026-11-01 12:15"));
-
-        return Response.ok(new NewsListDTO(items)).build();
+        return Response.ok(new NewsListDTO(facade.getAllNews())).build();
     }
 
-    /** Одна новость по id. GET /reader/news/1 */
     @GET
     @Path("/news/{id}")
     public Response getNewsById(@PathParam("id") Long id) {
         if (id == null || id <= 0) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Идентификатор новости должен быть положительным числом"))
-                    .build();
+            return error(Response.Status.BAD_REQUEST, "Идентификатор новости должен быть положительным числом");
         }
-
-        NewsItemDTO news = new NewsItemDTO(
-                id,
-                "Запущена новая версия городского портала",
-                "Портал стал быстрее и получил удобный поиск по новостям.",
-                "Городской портал обновился: ускорена загрузка страниц, появился умный поиск "
-                        + "и раздел с персональными подборками новостей.",
-                "Технологии",
-                "Редакция",
-                "2026-11-09 10:00",
-                "Москва",
-                Arrays.asList("технологии", "портал", "обновление"),
-                new ArrayList<String>(),
-                42
-        );
-
+        NewsItemDTO news = facade.getNewsById(id);
+        if (news == null) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
+        }
         return Response.ok(news).build();
     }
 
-    /** Новости за последнюю неделю. GET /reader/news/last_week */
     @GET
     @Path("/news/last_week")
     public Response getLastWeekNews() {
-        List<NewsTitleDTO> items = new ArrayList<NewsTitleDTO>();
-        items.add(new NewsTitleDTO(1L, "Запущена новая версия городского портала",
-                "Технологии", "2026-11-09 10:00"));
-        items.add(new NewsTitleDTO(2L, "Открытие новой станции метро",
-                "Общество", "2026-11-07 18:30"));
-
-        return Response.ok(new NewsListDTO(items)).build();
+        return Response.ok(new NewsListDTO(facade.getLastWeekNews())).build();
     }
 
-    /** Поиск новостей по ключевым словам. GET /reader/news/search?keywords=метро */
     @GET
     @Path("/news/search")
     public Response searchNews(@QueryParam("keywords") String keywords) {
-        if (keywords == null || keywords.trim().isEmpty()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Параметр keywords обязателен, например: ?keywords=метро"))
-                    .build();
+        List<String> terms = splitKeywords(keywords);
+        if (terms.isEmpty()) {
+            return error(Response.Status.BAD_REQUEST, "Параметр keywords обязателен, например: ?keywords=метро");
         }
-
-        List<NewsTitleDTO> items = new ArrayList<NewsTitleDTO>();
-        items.add(new NewsTitleDTO(2L, "Открытие новой станции метро",
-                "Общество", "2026-11-07 18:30"));
-
-        return Response.ok(new NewsListDTO(items)).build();
+        return Response.ok(new NewsListDTO(facade.searchNews(terms))).build();
     }
 
-    /** Новости региона. GET /reader/news/region?region=Москва */
     @GET
     @Path("/news/region")
     public Response getNewsByRegion(@QueryParam("region") String region) {
         if (region == null || region.trim().isEmpty()) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Параметр region обязателен, например: ?region=Москва"))
-                    .build();
+            return error(Response.Status.BAD_REQUEST, "Параметр region обязателен, например: ?region=Москва");
         }
-
-        List<NewsTitleDTO> items = new ArrayList<NewsTitleDTO>();
-        items.add(new NewsTitleDTO(1L, "Запущена новая версия городского портала",
-                "Технологии", "2026-11-09 10:00"));
-
-        return Response.ok(new NewsListDTO(items)).build();
+        return Response.ok(new NewsListDTO(facade.getNewsByRegion(region))).build();
     }
 
-    /** Список категорий. GET /reader/categories */
     @GET
     @Path("/categories")
     public Response getCategories() {
-        List<CategoryDTO> categories = new ArrayList<CategoryDTO>();
-        categories.add(new CategoryDTO(1L, "Технологии", "IT, гаджеты и инновации"));
-        categories.add(new CategoryDTO(2L, "Общество", "Городские события и жизнь горожан"));
-        categories.add(new CategoryDTO(3L, "Спорт", "Соревнования и спортивные результаты"));
-        categories.add(new CategoryDTO(4L, "Культура", "Выставки, театр, музыка"));
-
+        List<CategoryDTO> categories = facade.getCategories();
         return Response.ok(new CategoryListDTO(categories)).build();
     }
 
-    /** Добавить новость в закладки. POST /reader/news/1/bookmark */
+    /** Добавить новость в избранное (use case «Избранное»). */
     @POST
     @Path("/news/{id}/bookmark")
-    public Response addBookmark(@PathParam("id") Long id) {
-        return Response.ok(ActionStatusDTO.ok("Новость " + id + " добавлена в закладки")).build();
+    public Response addBookmark(@PathParam("id") Long id,
+                                @QueryParam("userId") Long userId) {
+        long uid = userId == null ? DEFAULT_USER_ID : userId;
+        if (!facade.addBookmark(uid, id)) {
+            return error(Response.Status.NOT_FOUND, "Новость или пользователь не найдены");
+        }
+        return Response.ok(ActionStatusDTO.ok("Новость " + id + " добавлена в избранное")).build();
     }
 
-    /** Оставить комментарий. POST /reader/comments */
+    /** Убрать новость из избранного (use case «Избранное»). */
+    @DELETE
+    @Path("/news/{id}/bookmark")
+    public Response removeBookmark(@PathParam("id") Long id,
+                                   @QueryParam("userId") Long userId) {
+        long uid = userId == null ? DEFAULT_USER_ID : userId;
+        if (!facade.removeBookmark(uid, id)) {
+            return error(Response.Status.NOT_FOUND, "Новость или пользователь не найдены");
+        }
+        return Response.ok(ActionStatusDTO.ok("Новость " + id + " убрана из избранного")).build();
+    }
+
+    /** Список избранного пользователя (use case «Избранное»). */
+    @GET
+    @Path("/favorites")
+    public Response getFavorites(@QueryParam("userId") Long userId) {
+        long uid = userId == null ? DEFAULT_USER_ID : userId;
+        return Response.ok(new NewsListDTO(facade.getFavorites(uid))).build();
+    }
+
+    /** Регистрация (use case «Регистрация / Авторизация»). */
+    @POST
+    @Path("/auth/register")
+    public Response register(@QueryParam("name") String name,
+                             @QueryParam("email") String email,
+                             @QueryParam("password") String password) {
+        UserDTO user = facade.register(new RegistrationData(name, email, password));
+        if (user == null) {
+            return error(Response.Status.BAD_REQUEST,
+                    "Некорректные данные или пользователь с таким email уже существует");
+        }
+        return Response.status(Response.Status.CREATED).entity(user).build();
+    }
+
+    /** Вход в систему (IAuthorizable.login). */
+    @POST
+    @Path("/auth/login")
+    public Response login(@QueryParam("login") String login,
+                          @QueryParam("password") String password) {
+        if (facade.login(login, password)) {
+            return Response.ok(ActionStatusDTO.ok("Вход выполнен")).build();
+        }
+        return error(Response.Status.UNAUTHORIZED, "Неверный логин или пароль");
+    }
+
+    /** Оставить комментарий (use case «Комментировать»). */
     @POST
     @Path("/comments")
     @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
     public Response createComment(CreateCommentRequestDTO request) {
         if (request == null || request.getNewsId() == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Поле newsId обязательно"))
-                    .build();
+            return error(Response.Status.BAD_REQUEST, "Поле newsId обязательно");
         }
-        if (isBlank(request.getText())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Поле text обязательно"))
-                    .build();
+        CommentDTO comment = facade.createComment(request);
+        if (comment == null) {
+            return error(Response.Status.NOT_FOUND,
+                    "Новость с id = " + request.getNewsId() + " не найдена или текст пуст");
         }
-
-        CommentDTO comment = new CommentDTO(
-                1L,
-                request.getNewsId(),
-                isBlank(request.getAuthor()) ? "Аноним" : request.getAuthor(),
-                request.getText(),
-                "2026-11-10 12:00",
-                null
-        );
-
         return Response.status(Response.Status.CREATED).entity(comment).build();
     }
 
-    /** Редактировать комментарий. PUT /reader/comments/1 */
     @PUT
     @Path("/comments/{id}")
     @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
     public Response updateComment(@PathParam("id") Long id, UpdateCommentRequestDTO request) {
-        if (request == null || isBlank(request.getText())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Поле text обязательно"))
-                    .build();
+        CommentDTO comment = facade.updateComment(id, request);
+        if (comment == null) {
+            return error(Response.Status.NOT_FOUND, "Комментарий с id = " + id + " не найден или текст пуст");
         }
-
-        CommentDTO comment = new CommentDTO(
-                id, 1L, "Иван", request.getText(), "2026-11-10 12:05", null);
-
         return Response.ok(comment).build();
     }
 
-    /** Удалить комментарий. DELETE /reader/comments/1 */
     @DELETE
     @Path("/comments/{id}")
     public Response deleteComment(@PathParam("id") Long id) {
+        if (!facade.deleteComment(id)) {
+            return error(Response.Status.NOT_FOUND, "Комментарий с id = " + id + " не найден");
+        }
         return Response.ok(ActionStatusDTO.ok("Комментарий " + id + " удалён")).build();
     }
 
-    private static boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+    private static List<String> splitKeywords(String raw) {
+        List<String> result = new ArrayList<String>();
+        if (raw == null) {
+            return result;
+        }
+        for (String part : raw.split("[\\s,]+")) {
+            if (!part.trim().isEmpty()) {
+                result.add(part.trim());
+            }
+        }
+        return result;
+    }
+
+    private static Response error(Response.Status status, String message) {
+        return Response.status(status).entity(ActionStatusDTO.error(message)).build();
     }
 }

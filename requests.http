@@ -1,45 +1,61 @@
-### Лабораторная работа №2 - DTO и JSON
-### Запустите lab2/src/main/java/view/WebAppServer.java (порт 8080).
+### Лабораторная работа №3 - BO по UML + Facade + AdminAPI + статика
+### Запустите lab3/src/main/java/view/WebAppServer.java (порт 8080).
+### Клиентский интерфейс: http://localhost:8080/
 @host = http://localhost:8080
 
-### Все новости (ответ - JSON-объект NewsListDTO)
+### Все новости (опубликованные, черновики скрыты)
 GET {{host}}/reader/news/all
 
-### Одна новость (ответ - JSON-объект NewsItemDTO)
+### Одна новость (NewsItemDTO со статусом)
 GET {{host}}/reader/news/1
 
-### Неверный id (400 + ActionStatusDTO)
-GET {{host}}/reader/news/0
+### Черновик (id=7) скрыт от читателя - ожидается 404
+GET {{host}}/reader/news/7
 
-### Новости за последнюю неделю
+### Новости за неделю
 GET {{host}}/reader/news/last_week
 
-### Поиск по ключевым словам
+### Поиск по тексту новости
 GET {{host}}/reader/news/search?keywords=метро
 
-### Поиск без параметра (400)
-GET {{host}}/reader/news/search
+### Поиск по названию категории (объединение результатов)
+GET {{host}}/reader/news/search?keywords=наука
 
 ### Новости региона
 GET {{host}}/reader/news/region?region=Москва
 
-### Категории (CategoryListDTO)
+### Категории
 GET {{host}}/reader/categories
 
-### Добавить в закладки (ActionStatusDTO)
-POST {{host}}/reader/news/1/bookmark
+### Регистрация (Guest.register) - 201
+POST {{host}}/reader/auth/register?name=Пётр&email=petr@example.com&password=pass
 
-### Оставить комментарий (CreateCommentRequestDTO -> CommentDTO)
+### Вход (IAuthorizable.login) - 200
+POST {{host}}/reader/auth/login?login=maria@example.com&password=pass
+
+### Вход с неверным паролем - 401
+POST {{host}}/reader/auth/login?login=maria@example.com&password=wrong
+
+### Добавить в избранное (userId по умолчанию 2)
+POST {{host}}/reader/news/1/bookmark?userId=2
+
+### Список избранного пользователя
+GET {{host}}/reader/favorites?userId=2
+
+### Убрать из избранного
+DELETE {{host}}/reader/news/1/bookmark?userId=2
+
+### Комментарий к новости
 POST {{host}}/reader/comments
 Content-Type: application/json
 
 {
   "newsId": 1,
   "author": "Иван",
-  "text": "Очень полезная новость"
+  "text": "Спасибо за подробный материал!"
 }
 
-### Редактировать комментарий
+### Изменить комментарий
 PUT {{host}}/reader/comments/1
 Content-Type: application/json
 
@@ -50,45 +66,48 @@ Content-Type: application/json
 ### Удалить комментарий
 DELETE {{host}}/reader/comments/1
 
-### Создать новость (CreateNewsRequestDTO -> NewsItemDTO)
+### ===== API журналиста =====
+
+### Создать новость (создаётся и сразу публикуется)
 POST {{host}}/creator/news
 Content-Type: application/json
 
 {
-  "title": "Новая новость",
-  "annotation": "Краткое описание",
-  "text": "Полный текст новости",
+  "title": "Проверка лабораторной работы",
+  "annotation": "Новость создана через API",
+  "text": "Полный текст новой новости, созданной через фасад.",
   "categoryId": 1,
-  "author": "Редакция",
+  "author": "Мария Соколова",
   "region": "Москва",
-  "tags": ["новости", "город"]
+  "tags": ["тест", "api"]
 }
 
-### Изменить новость
+### Изменить новость (статус -> EDITED)
 PUT {{host}}/creator/news/1
 Content-Type: application/json
 
 {
-  "title": "Обновлённый заголовок",
-  "text": "Обновлённый текст"
+  "title": "Обновлённый заголовок новости",
+  "text": "Обновлённый полный текст."
 }
 
-### Удалить новость
-DELETE {{host}}/creator/news/1
+### Опубликовать новость (Draft -> Published)
+POST {{host}}/creator/news/7/publish
+
+### Снять с публикации (Published -> Draft)
+POST {{host}}/creator/news/7/unpublish
+
+### Перевести в архив (Published -> Archived)
+POST {{host}}/creator/news/6/archive
+
+### Добавить тег (News 0..* -- 0..* Tag)
+POST {{host}}/creator/news/1/tags?tag=java
 
 ### Прикрепить медиафайл
 POST {{host}}/creator/news/1/media?url=https://example.com/photo.jpg
 
-### Добавить тег
-POST {{host}}/creator/news/1/tags?tag=java
-
-### Ответить на комментарий
-POST {{host}}/creator/comments/1/reply
-Content-Type: application/json
-
-{
-  "text": "Спасибо за отзыв!"
-}
+### Удалить новость (мягкое удаление, статус DELETED)
+DELETE {{host}}/creator/news/1
 
 ### ===== API администратора =====
 
@@ -98,11 +117,11 @@ GET {{host}}/admin/users
 ### Список ролей (RoleListDTO)
 GET {{host}}/admin/roles
 
-### Заблокировать пользователя (ActionStatusDTO)
-POST {{host}}/admin/users/1/block
+### Заблокировать пользователя
+POST {{host}}/admin/users/2/block
 
-### Назначить роль (ActionStatusDTO)
-PUT {{host}}/admin/users/1/role?role=ADMIN
+### Назначить роль
+PUT {{host}}/admin/users/2/role?role=ADMIN
 
-### Модерировать комментарий (ActionStatusDTO)
+### Модерировать комментарий (approve / reject)
 POST {{host}}/admin/comments/1/moderate?action=approve

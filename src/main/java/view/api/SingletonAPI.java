@@ -8,11 +8,10 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * JAX-RS-приложение лабораторной работы №2.
+ * JAX-RS-приложение лабораторной работы №3.
  *
- * <p>Помимо единственных экземпляров {@link ReaderAPI} и {@link CreatorAPI} здесь
- * регистрируется провайдер Jackson: именно он превращает возвращаемые DTO в JSON
- * (и разбирает JSON из тела запроса в DTO).</p>
+ * <p>Регистрирует единственные экземпляры контроллеров, провайдер Jackson
+ * и фильтр CORS.</p>
  */
 public class SingletonAPI extends Application {
 
@@ -22,6 +21,7 @@ public class SingletonAPI extends Application {
         singletons.add(new ReaderAPI());
         singletons.add(new CreatorAPI());
         singletons.add(new AdminAPI());
+        singletons.add(new StaticPageAPI());
 
         singletons.add(new JacksonJsonProvider());
 

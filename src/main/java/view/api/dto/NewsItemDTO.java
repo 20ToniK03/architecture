@@ -20,6 +20,7 @@ public class NewsItemDTO {
     private String author;
     private String publishedAt;
     private String region;
+    private String status;
     private List<String> tags = new ArrayList<String>();
     private List<String> media = new ArrayList<String>();
     private int rating;
@@ -105,6 +106,14 @@ public class NewsItemDTO {
 
     public void setRegion(String region) {
         this.region = region;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public List<String> getTags() {

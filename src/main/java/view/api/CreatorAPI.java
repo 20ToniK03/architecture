@@ -1,10 +1,9 @@
 package view.api;
 
+import controller.FacadeController;
 import view.api.dto.ActionStatusDTO;
-import view.api.dto.CommentDTO;
 import view.api.dto.CreateNewsRequestDTO;
 import view.api.dto.NewsItemDTO;
-import view.api.dto.ReplyCommentRequestDTO;
 import view.api.dto.UpdateNewsRequestDTO;
 
 import javax.ws.rs.Consumes;
@@ -17,124 +16,122 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
- * API создателя/редактора - лабораторная работа №2.
+ * API журналиста (актёр «Журналист», use case «Создать/Редактировать/Удалить
+ * новость») - лабораторная работа №3.
  *
- * <p>Методы принимают DTO из тела запроса (JSON) и возвращают DTO-результат.
- * Данные тестовые: изменения нигде не сохраняются.</p>
+ * <p>Работает через {@link FacadeController} (внутри - {@code JournalistBO}:
+ * {@code createNews}, {@code editNews}, {@code deleteNews}).</p>
  */
 @Path("/creator")
 @Produces(MediaType.APPLICATION_JSON + ";charset=UTF-8")
 public class CreatorAPI {
 
-    /** Создать новость. POST /creator/news */
+    private final FacadeController facade = FacadeController.getInstance();
+
     @POST
     @Path("/news")
     @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
     public Response createNews(CreateNewsRequestDTO request) {
         if (request == null || isBlank(request.getTitle())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Поле title обязательно"))
-                    .build();
+            return error(Response.Status.BAD_REQUEST, "Поле title обязательно");
         }
-
-        NewsItemDTO created = new NewsItemDTO(
-                10L,
-                request.getTitle(),
-                request.getAnnotation(),
-                request.getText(),
-                "Технологии",
-                isBlank(request.getAuthor()) ? "Редакция" : request.getAuthor(),
-                "2026-11-10 12:30",
-                isBlank(request.getRegion()) ? "Москва" : request.getRegion(),
-                request.getTags() == null ? new ArrayList<String>() : request.getTags(),
-                new ArrayList<String>(),
-                0
-        );
-
+        if (request.getCategoryId() == null) {
+            return error(Response.Status.BAD_REQUEST, "Поле categoryId обязательно");
+        }
+        NewsItemDTO created = facade.createNews(request);
+        if (created == null) {
+            return error(Response.Status.BAD_REQUEST,
+                    "Категория с id = " + request.getCategoryId() + " не найдена");
+        }
         return Response.status(Response.Status.CREATED).entity(created).build();
     }
 
-    /** Изменить новость. PUT /creator/news/1 */
     @PUT
     @Path("/news/{id}")
     @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
     public Response updateNews(@PathParam("id") Long id, UpdateNewsRequestDTO request) {
-        if (request == null) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Тело запроса обязательно"))
-                    .build();
+        NewsItemDTO updated = facade.updateNews(id, request);
+        if (updated == null) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
         }
-
-        NewsItemDTO updated = new NewsItemDTO(
-                id,
-                isBlank(request.getTitle()) ? "Заголовок без изменений" : request.getTitle(),
-                request.getAnnotation(),
-                request.getText(),
-                "Технологии",
-                "Редакция",
-                "2026-11-09 10:00",
-                isBlank(request.getRegion()) ? "Москва" : request.getRegion(),
-                request.getTags() == null ? new ArrayList<String>() : request.getTags(),
-                new ArrayList<String>(),
-                42
-        );
-
         return Response.ok(updated).build();
     }
 
-    /** Удалить новость. DELETE /creator/news/1 */
     @DELETE
     @Path("/news/{id}")
     public Response deleteNews(@PathParam("id") Long id) {
+        if (!facade.deleteNews(id)) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
+        }
         return Response.ok(ActionStatusDTO.ok("Новость " + id + " удалена")).build();
     }
 
-    /** Прикрепить медиафайл. POST /creator/news/1/media?url=https://... */
+    /** Опубликовать новость (IPublishable.publish, состояние Published). */
     @POST
-    @Path("/news/{id}/media")
-    public Response attachMedia(@PathParam("id") Long id, @QueryParam("url") String url) {
-        if (isBlank(url)) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Параметр url обязателен"))
-                    .build();
+    @Path("/news/{id}/publish")
+    public Response publishNews(@PathParam("id") Long id) {
+        NewsItemDTO published = facade.publishNews(id);
+        if (published == null) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
         }
-        return Response.ok(ActionStatusDTO.ok("К новости " + id + " прикреплён файл " + url)).build();
+        return Response.ok(published).build();
     }
 
-    /** Добавить тег. POST /creator/news/1/tags?tag=java */
+    /** Снять с публикации (IPublishable.unpublish, состояние Draft). */
+    @POST
+    @Path("/news/{id}/unpublish")
+    public Response unpublishNews(@PathParam("id") Long id) {
+        NewsItemDTO unpublished = facade.unpublishNews(id);
+        if (unpublished == null) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
+        }
+        return Response.ok(unpublished).build();
+    }
+
+    /** Перевести в архив (IPublishable.archive, состояние Archived). */
+    @POST
+    @Path("/news/{id}/archive")
+    public Response archiveNews(@PathParam("id") Long id) {
+        NewsItemDTO archived = facade.archiveNews(id);
+        if (archived == null) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
+        }
+        return Response.ok(archived).build();
+    }
+
+    /** Добавить тег (News 0..* -- 0..* Tag). */
     @POST
     @Path("/news/{id}/tags")
     public Response addTag(@PathParam("id") Long id, @QueryParam("tag") String tag) {
         if (isBlank(tag)) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Параметр tag обязателен"))
-                    .build();
+            return error(Response.Status.BAD_REQUEST, "Параметр tag обязателен");
+        }
+        if (!facade.addTag(id, tag)) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
         }
         return Response.ok(ActionStatusDTO.ok("К новости " + id + " добавлен тег «" + tag + "»")).build();
     }
 
-    /** Ответить на комментарий. POST /creator/comments/1/reply */
+    /** Прикрепить медиафайл (вспомогательный метод). */
     @POST
-    @Path("/comments/{id}/reply")
-    @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
-    public Response replyToComment(@PathParam("id") Long id, ReplyCommentRequestDTO request) {
-        if (request == null || isBlank(request.getText())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(ActionStatusDTO.error("Поле text обязательно"))
-                    .build();
+    @Path("/news/{id}/media")
+    public Response attachMedia(@PathParam("id") Long id, @QueryParam("url") String url) {
+        if (isBlank(url)) {
+            return error(Response.Status.BAD_REQUEST, "Параметр url обязателен");
         }
-
-        CommentDTO comment = new CommentDTO(
-                id, 1L, "Иван", "Комментарий читателя", "2026-11-10 12:00", request.getText());
-
-        return Response.ok(comment).build();
+        if (!facade.attachMedia(id, url)) {
+            return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
+        }
+        return Response.ok(ActionStatusDTO.ok("К новости " + id + " прикреплён файл " + url)).build();
     }
 
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private static Response error(Response.Status status, String message) {
+        return Response.status(status).entity(ActionStatusDTO.error(message)).build();
     }
 }
