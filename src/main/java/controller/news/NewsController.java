@@ -176,8 +176,8 @@ public class NewsController implements NewsInterface {
         if (data == null) {
             return news;
         }
-        if (data.getTitle() != null) {
-            news.setTitle(data.getTitle());
+        if (data.getTitle() != null && !data.getTitle().equals(news.getTitle())) {
+            news.changeTitle(data.getTitle());
         }
         if (data.getText() != null) {
             news.setText(data.getText());

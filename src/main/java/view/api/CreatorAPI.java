@@ -41,7 +41,14 @@ public class CreatorAPI {
         if (request.getCategoryId() == null) {
             return error(Response.Status.BAD_REQUEST, "Поле categoryId обязательно");
         }
-        NewsItemDTO created = facade.createNews(request);
+        NewsItemDTO created;
+        try {
+            created = facade.createNews(request);
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        } catch (IllegalStateException e) {
+            return error(Response.Status.CONFLICT, e.getMessage());
+        }
         if (created == null) {
             return error(Response.Status.BAD_REQUEST,
                     "Категория с id = " + request.getCategoryId() + " не найдена");
@@ -53,7 +60,14 @@ public class CreatorAPI {
     @Path("/news/{id}")
     @Consumes(MediaType.APPLICATION_JSON + ";charset=UTF-8")
     public Response updateNews(@PathParam("id") Long id, UpdateNewsRequestDTO request) {
-        NewsItemDTO updated = facade.updateNews(id, request);
+        NewsItemDTO updated;
+        try {
+            updated = facade.updateNews(id, request);
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        } catch (IllegalStateException e) {
+            return error(Response.Status.CONFLICT, e.getMessage());
+        }
         if (updated == null) {
             return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
         }
@@ -73,7 +87,12 @@ public class CreatorAPI {
     @POST
     @Path("/news/{id}/publish")
     public Response publishNews(@PathParam("id") Long id) {
-        NewsItemDTO published = facade.publishNews(id);
+        NewsItemDTO published;
+        try {
+            published = facade.publishNews(id);
+        } catch (IllegalStateException e) {
+            return error(Response.Status.CONFLICT, e.getMessage());
+        }
         if (published == null) {
             return error(Response.Status.NOT_FOUND, "Новость с id = " + id + " не найдена");
         }

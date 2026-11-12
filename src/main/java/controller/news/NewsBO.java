@@ -57,6 +57,9 @@ public class NewsBO implements IPublishable, ICommentable {
 
     @Override
     public void publish() {
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalStateException("Нельзя опубликовать новость без заголовка");
+        }
         this.status = NewsStatus.PUBLISHED;
         touch();
     }
@@ -121,6 +124,26 @@ public class NewsBO implements IPublishable, ICommentable {
 
     // Бизнес-операции
 
+    /**
+     * Изменить заголовок новости.
+     *
+     * <p>Правило предметной области: заголовок можно менять только у
+     * неопубликованной новости, и он не может быть пустым.</p>
+     *
+     * @throws IllegalStateException если новость уже опубликована
+     * @throws IllegalArgumentException если заголовок пустой
+     */
+    public void changeTitle(String newTitle) {
+        if (isPublished()) {
+            throw new IllegalStateException("Нельзя менять заголовок опубликованной новости");
+        }
+        if (newTitle == null || newTitle.trim().isEmpty()) {
+            throw new IllegalArgumentException("Заголовок не может быть пустым");
+        }
+        this.title = newTitle;
+        touch();
+    }
+
     public void addCategory(CategoryBO category) {
         if (category != null && !categories.contains(category)) {
             categories.add(category);
@@ -165,10 +188,6 @@ public class NewsBO implements IPublishable, ICommentable {
 
     public String getTitle() {
         return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
     }
 
     public String getText() {
