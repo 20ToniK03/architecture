@@ -1,8 +1,8 @@
 package controller.person;
 
 /**
- * Данные регистрации пользователя (тип {@code RegistrationData} из UML:
- * используется в сигнатуре {@code Guest.register}).
+ * Данные регистрации пользователя (тип {@code RegistrationData} из UML).
+ * Используется контроллером {@code UserController} при регистрации.
  */
 public class RegistrationData {
 

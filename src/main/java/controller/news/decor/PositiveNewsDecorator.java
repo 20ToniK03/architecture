@@ -1,7 +1,7 @@
 package controller.news.decor;
 
+import controller.news.NewsBO;
 import controller.news.NewsInterface;
-import view.api.dto.NewsTitleDTO;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,11 +9,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Декоратор позитивных новостей (ЛР4).
+ * Декоратор позитивных новостей (ЛР4, ЛР5).
  *
- * <p>Наследник абстрактного {@link NewsDecorator}. Дополняет методы выдачи списка
- * новостей проверкой на «позитивность»: новости, в заголовке которых встречаются
- * негативные слова, исключаются из результата.</p>
+ * <p>Дополняет методы выдачи списков проверкой на «позитивность»: новости,
+ * в заголовке которых встречаются негативные слова, исключаются из результата.
+ * Поскольку в ЛР5 операции со списками живут в контроллере, декоратор
+ * оборачивает именно контроллер.</p>
  */
 public class PositiveNewsDecorator extends NewsDecorator {
 
@@ -25,28 +26,51 @@ public class PositiveNewsDecorator extends NewsDecorator {
     }
 
     @Override
-    public List<NewsTitleDTO> getAll() {
-        return filterPositive(super.getAll());
+    public List<NewsBO> findAll() {
+        return filterPositive(super.findAll());
     }
 
     @Override
-    public List<NewsTitleDTO> searchNews(List<String> keywords) {
-        return filterPositive(super.searchNews(keywords));
+    public List<NewsBO> findVisible() {
+        return filterPositive(super.findVisible());
     }
 
-    /** Фильтрация списка по ключевым словам (вынесена в отдельный метод). */
-    private List<NewsTitleDTO> filterPositive(List<NewsTitleDTO> news) {
-        List<NewsTitleDTO> result = new ArrayList<NewsTitleDTO>();
-        for (NewsTitleDTO item : news) {
-            if (isPositive(item)) {
-                result.add(item);
+    @Override
+    public List<NewsBO> findByCategory(long categoryId) {
+        return filterPositive(super.findByCategory(categoryId));
+    }
+
+    @Override
+    public List<NewsBO> findLatest(int days) {
+        return filterPositive(super.findLatest(days));
+    }
+
+    @Override
+    public List<NewsBO> findByRegion(String region) {
+        return filterPositive(super.findByRegion(region));
+    }
+
+    @Override
+    public List<NewsBO> search(List<String> keywords) {
+        return filterPositive(super.search(keywords));
+    }
+
+    /** Фильтрация списка по заголовкам. */
+    private List<NewsBO> filterPositive(List<NewsBO> newsList) {
+        List<NewsBO> result = new ArrayList<NewsBO>();
+        if (newsList == null) {
+            return result;
+        }
+        for (NewsBO news : newsList) {
+            if (isPositive(news)) {
+                result.add(news);
             }
         }
         return result;
     }
 
-    private boolean isPositive(NewsTitleDTO item) {
-        String title = item.getTitle() == null ? "" : item.getTitle().toLowerCase(Locale.ROOT);
+    private boolean isPositive(NewsBO news) {
+        String title = news.getTitle() == null ? "" : news.getTitle().toLowerCase(Locale.ROOT);
         for (String word : NEGATIVE_WORDS) {
             if (title.contains(word)) {
                 return false;

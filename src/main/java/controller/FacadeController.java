@@ -1,18 +1,24 @@
 package controller;
 
+import controller.category.CategoryBO;
+import controller.category.CategoryController;
 import controller.comment.CommentBO;
+import controller.comment.CommentController;
 import controller.favorite.FavoriteBO;
+import controller.favorite.FavoriteController;
+import controller.news.NewsBO;
 import controller.news.NewsController;
+import controller.news.NewsData;
 import controller.news.NewsInterface;
 import controller.news.decor.PositiveNewsDecorator;
-import controller.person.AdminBO;
-import controller.person.GuestBO;
 import controller.person.JournalistBO;
 import controller.person.RegistrationData;
 import controller.person.UserBO;
+import controller.person.UserController;
 import controller.role.RoleBO;
-import model.IdSequence;
-import model.InMemoryStore;
+import controller.role.RoleController;
+import controller.tag.TagBO;
+import controller.tag.TagController;
 import view.api.dto.CategoryDTO;
 import view.api.dto.CommentDTO;
 import view.api.dto.CreateCommentRequestDTO;
@@ -31,14 +37,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 /**
  * Фасад (паттерн Facade) между слоем представления и предметной областью.
  *
- * <p>Скрывает бизнес-объекты и хранилища за единым интерфейсом, принимает DTO
- * запросов и возвращает DTO ответов. В ЛР4 работа с новостями вынесена в
- * {@link NewsController}, а фасад обращается к нему через интерфейс
- * {@link NewsInterface}, что позволяет оборачивать контроллер декораторами.</p>
+ * <p>Скрывает контроллеры бизнес-объектов за единым интерфейсом, принимает DTO
+ * запросов и возвращает DTO ответов. Начиная с ЛР5 каждый бизнес-объект имеет
+ * собственный контроллер, который отвечает за существование его экземпляров.
+ * Фасад связывает контроллеры между собой и выполняет преобразование
+ * бизнес-объектов в DTO.</p>
  */
 public final class FacadeController {
 
@@ -49,25 +57,22 @@ public final class FacadeController {
 
     private static final FacadeController INSTANCE = new FacadeController();
 
+    private final RoleController roleController = new RoleController();
+    private final UserController userController = new UserController();
+    private final CategoryController categoryController = new CategoryController();
+    private final TagController tagController = new TagController();
+    private final FavoriteController favoriteController = new FavoriteController();
+
     private final NewsInterface newsController;
-
-    private final InMemoryStore<CommentBO> commentStore = new InMemoryStore<CommentBO>();
-    private final InMemoryStore<UserBO> userStore = new InMemoryStore<UserBO>();
-    private final InMemoryStore<RoleBO> roleStore = new InMemoryStore<RoleBO>();
-
-    private final IdSequence commentIds = new IdSequence();
-    private final IdSequence userIds = new IdSequence();
-    private final IdSequence roleIds = new IdSequence();
-
-    private final GuestBO guest = new GuestBO();
-    private JournalistBO journalist;
-    private AdminBO admin;
+    private final CommentController commentController;
 
     private FacadeController() {
-        seedRoles();
-        seedUsers();
-        this.newsController = createNewsController();
-        seedComments();
+        SeedData.seedRoles(roleController);
+        JournalistBO journalist = SeedData.seedUsers(userController, roleController);
+        this.newsController = createNewsController(journalist);
+        this.commentController = new CommentController(newsController);
+        SeedData.seedContent(categoryController, tagController, newsController,
+                userController, commentController);
     }
 
     public static FacadeController getInstance() {
@@ -77,59 +82,129 @@ public final class FacadeController {
     // --- Новости (делегирование NewsController, ЛР4) ---
 
     public synchronized List<NewsTitleDTO> getAllNews() {
-        return newsController.getAll();
+        return toTitleList(newsController.findVisible());
     }
 
     public synchronized NewsItemDTO getNewsById(long id) {
-        return newsController.getNewsById(id);
+        NewsBO news = newsController.findVisibleById(id);
+        return news == null ? null : toNewsItemDTO(news);
     }
 
     public synchronized List<NewsTitleDTO> getLastWeekNews() {
-        return newsController.getLastWeekNews();
+        return toTitleList(newsController.findLatest(7));
     }
 
     public synchronized List<NewsTitleDTO> searchNews(List<String> keywords) {
-        return newsController.searchNews(keywords);
+        return toTitleList(newsController.search(keywords));
     }
 
     public synchronized List<NewsTitleDTO> getNewsByRegion(String region) {
-        return newsController.getNewsByRegion(region);
+        return toTitleList(newsController.findByRegion(region));
     }
 
     public synchronized List<CategoryDTO> getCategories() {
-        return newsController.getCategories();
+        List<CategoryDTO> result = new ArrayList<CategoryDTO>();
+        for (CategoryBO category : categoryController.findAll()) {
+            result.add(toCategoryDTO(category));
+        }
+        return result;
     }
 
     public synchronized NewsItemDTO createNews(CreateNewsRequestDTO request) {
-        return newsController.createNews(request);
+        if (request == null || request.getCategoryId() == null) {
+            return null;
+        }
+        CategoryBO category;
+        try {
+            category = categoryController.findById(request.getCategoryId());
+        } catch (NoSuchElementException e) {
+            return null;
+        }
+        NewsData data = new NewsData(
+                trimToNull(request.getTitle()),
+                trimToNull(request.getText()),
+                trimToNull(request.getAnnotation()),
+                isBlank(request.getRegion()) ? "Москва" : request.getRegion().trim(),
+                Arrays.asList(category.getId()),
+                request.getTags() == null ? new ArrayList<String>() : request.getTags()
+        );
+        NewsBO news = newsController.create(data);
+        newsController.publish(news.getId());
+        return toNewsItemDTO(news);
     }
 
     public synchronized NewsItemDTO updateNews(long id, UpdateNewsRequestDTO request) {
-        return newsController.updateNews(id, request);
+        NewsBO news;
+        try {
+            news = newsController.findById(id);
+        } catch (NoSuchElementException e) {
+            return null;
+        }
+        if (request == null) {
+            return toNewsItemDTO(news);
+        }
+
+        List<Long> categoryIds = new ArrayList<Long>();
+        for (CategoryBO category : news.getCategories()) {
+            categoryIds.add(category.getId());
+        }
+        if (request.getCategoryId() != null && categoryExists(request.getCategoryId())) {
+            categoryIds.add(request.getCategoryId());
+        }
+
+        NewsData data = new NewsData(
+                request.getTitle() == null ? news.getTitle() : request.getTitle(),
+                request.getText() == null ? news.getText() : request.getText(),
+                request.getAnnotation() == null ? news.getAnnotation() : request.getAnnotation(),
+                request.getRegion() == null ? news.getRegion() : request.getRegion(),
+                categoryIds,
+                request.getTags()
+        );
+        return toNewsItemDTO(newsController.update(id, data));
     }
 
     public synchronized boolean deleteNews(long id) {
-        return newsController.deleteNews(id);
+        return newsController.delete(id);
     }
 
     public synchronized NewsItemDTO publishNews(long id) {
-        return newsController.publishNews(id);
+        try {
+            return toNewsItemDTO(newsController.publish(id));
+        } catch (NoSuchElementException e) {
+            return null;
+        }
     }
 
     public synchronized NewsItemDTO unpublishNews(long id) {
-        return newsController.unpublishNews(id);
+        try {
+            return toNewsItemDTO(newsController.unpublish(id));
+        } catch (NoSuchElementException e) {
+            return null;
+        }
     }
 
     public synchronized NewsItemDTO archiveNews(long id) {
-        return newsController.archiveNews(id);
+        try {
+            return toNewsItemDTO(newsController.archive(id));
+        } catch (NoSuchElementException e) {
+            return null;
+        }
     }
 
     public synchronized boolean addTag(long newsId, String tagName) {
-        return newsController.addTag(newsId, tagName);
+        try {
+            return newsController.addTag(newsId, tagName);
+        } catch (NoSuchElementException e) {
+            return false;
+        }
     }
 
     public synchronized boolean attachMedia(long newsId, String url) {
-        return newsController.attachMedia(newsId, url);
+        try {
+            return newsController.attachMedia(newsId, url);
+        } catch (NoSuchElementException e) {
+            return false;
+        }
     }
 
     // --- Авторизация (use case «Регистрация / Авторизация») ---
@@ -138,54 +213,46 @@ public final class FacadeController {
         if (data == null || isBlank(data.getName()) || isBlank(data.getEmail())) {
             return null;
         }
-        if (findUserByEmail(data.getEmail()) != null) {
+        RoleBO role = roleController.findByName("USER");
+        try {
+            return toUserDTO(userController.register(data, role));
+        } catch (IllegalArgumentException e) {
             return null;
         }
-        UserBO user = guest.register(data);
-        user.setId(userIds.next());
-        RoleBO role = roleStore.find(2L);
-        if (role != null) {
-            user.addRole(role);
-        }
-        userStore.put(user.getId(), user);
-        return toUserDTO(user);
     }
 
     public synchronized boolean login(String login, String password) {
-        UserBO user = findUserByEmail(login);
-        return user != null && user.login(login, password);
+        return userController.login(login, password);
     }
 
     // --- Избранное (use case «Избранное») ---
 
     public synchronized boolean addBookmark(long userId, long newsId) {
-        UserBO user = userStore.find(userId);
-        if (user == null || newsController.getNewsById(newsId) == null) {
+        if (!userExists(userId) || !newsExists(newsId)) {
             return false;
         }
-        user.addToFavorites(newsId);
-        return true;
+        return favoriteController.add(userId, newsId);
     }
 
     public synchronized boolean removeBookmark(long userId, long newsId) {
-        UserBO user = userStore.find(userId);
-        if (user == null) {
+        if (!userExists(userId)) {
             return false;
         }
-        user.removeFromFavorites(newsId);
+        favoriteController.remove(userId, newsId);
         return true;
     }
 
     public synchronized List<NewsTitleDTO> getFavorites(long userId) {
-        UserBO user = userStore.find(userId);
-        if (user == null) {
-            return new ArrayList<NewsTitleDTO>();
-        }
         List<NewsTitleDTO> result = new ArrayList<NewsTitleDTO>();
-        for (FavoriteBO favorite : user.getFavorites()) {
-            NewsItemDTO news = newsController.getNewsById(favorite.getNewsId());
-            if (news != null) {
-                result.add(new NewsTitleDTO(news.getId(), news.getTitle(), news.getCategory(), news.getPublishedAt()));
+        if (!userExists(userId)) {
+            return result;
+        }
+        for (FavoriteBO favorite : favoriteController.findByUser(userId)) {
+            try {
+                NewsBO news = newsController.findById(favorite.getNewsId());
+                result.add(toNewsTitleDTO(news));
+            } catch (NoSuchElementException ignored) {
+                // Новость удалена: запись избранного просто пропускаем.
             }
         }
         return result;
@@ -197,38 +264,37 @@ public final class FacadeController {
         if (request == null || request.getNewsId() == null || isBlank(request.getText())) {
             return null;
         }
-        if (newsController.getNewsById(request.getNewsId()) == null) {
+        NewsBO news;
+        try {
+            news = newsController.findById(request.getNewsId());
+        } catch (NoSuchElementException e) {
             return null;
         }
-        CommentBO comment = new CommentBO(
-                commentIds.next(),
-                request.getNewsId(),
-                request.getText().trim(),
-                new Date(),
-                resolveAuthor(request.getAuthor())
-        );
-        commentStore.put(comment.getId(), comment);
+        CommentBO comment = commentController.create(
+                news, request.getText().trim(), resolveAuthor(request.getAuthor()));
         return toCommentDTO(comment);
     }
 
     public synchronized CommentDTO updateComment(long id, UpdateCommentRequestDTO request) {
-        CommentBO comment = commentStore.find(id);
-        if (comment == null || request == null || isBlank(request.getText())) {
+        if (request == null || isBlank(request.getText())) {
             return null;
         }
-        comment.edit(request.getText().trim());
-        return toCommentDTO(comment);
+        try {
+            return toCommentDTO(commentController.update(id, request.getText().trim()));
+        } catch (NoSuchElementException e) {
+            return null;
+        }
     }
 
     public synchronized boolean deleteComment(long id) {
-        return commentStore.remove(id);
+        return commentController.delete(id);
     }
 
     // --- Администрирование (актёр «Администратор») ---
 
     public synchronized List<UserDTO> getUsers() {
         List<UserDTO> result = new ArrayList<UserDTO>();
-        for (UserBO user : userStore.findAll()) {
+        for (UserBO user : userController.findAll()) {
             result.add(toUserDTO(user));
         }
         return result;
@@ -236,44 +302,27 @@ public final class FacadeController {
 
     public synchronized List<RoleDTO> getRoles() {
         List<RoleDTO> result = new ArrayList<RoleDTO>();
-        for (RoleBO role : roleStore.findAll()) {
+        for (RoleBO role : roleController.findAll()) {
             result.add(toRoleDTO(role));
         }
         return result;
     }
 
     public synchronized boolean blockUser(long userId) {
-        UserBO user = userStore.find(userId);
-        if (user == null) {
-            return false;
-        }
-        admin.blockUser(user);
-        return true;
+        return userController.block(userId);
     }
 
     public synchronized boolean assignRole(long userId, String roleName) {
-        UserBO user = userStore.find(userId);
-        RoleBO role = findRoleByName(roleName);
-        if (user == null || role == null) {
-            return false;
-        }
-        admin.assignRole(user, role);
-        return true;
+        RoleBO role = roleController.findByName(roleName);
+        return userController.assignRole(userId, role);
     }
 
     public synchronized boolean moderateComment(long commentId, String action) {
-        CommentBO comment = commentStore.find(commentId);
-        if (comment == null) {
+        try {
+            return commentController.moderate(commentId, action);
+        } catch (NoSuchElementException e) {
             return false;
         }
-        if ("approve".equalsIgnoreCase(action)) {
-            admin.moderateComment(comment);
-        } else if ("reject".equalsIgnoreCase(action)) {
-            comment.setApproved(false);
-        } else {
-            return false;
-        }
-        return true;
     }
 
     // --- ЛР4: проверка даты и создание контроллера с декоратором ---
@@ -289,8 +338,8 @@ public final class FacadeController {
         return daysLeft < DAYS_UNTIL_END_OF_YEAR;
     }
 
-    private NewsInterface createNewsController() {
-        NewsController controller = new NewsController(journalist);
+    private NewsInterface createNewsController(JournalistBO journalist) {
+        NewsController controller = new NewsController(categoryController, tagController, journalist);
         if (isEndOfYearNear()) {
             return new PositiveNewsDecorator(controller);
         }
@@ -298,6 +347,48 @@ public final class FacadeController {
     }
 
     // --- Преобразование BO -> DTO ---
+
+    private List<NewsTitleDTO> toTitleList(List<NewsBO> newsList) {
+        List<NewsBO> sorted = new ArrayList<NewsBO>(newsList);
+        sorted.sort((first, second) -> {
+            long a = first.getCreatedAt() == null ? 0L : first.getCreatedAt().getTime();
+            long b = second.getCreatedAt() == null ? 0L : second.getCreatedAt().getTime();
+            return Long.compare(b, a);
+        });
+
+        List<NewsTitleDTO> result = new ArrayList<NewsTitleDTO>();
+        for (NewsBO news : sorted) {
+            result.add(toNewsTitleDTO(news));
+        }
+        return result;
+    }
+
+    private NewsTitleDTO toNewsTitleDTO(NewsBO news) {
+        return new NewsTitleDTO(news.getId(), news.getTitle(),
+                firstCategoryName(news), format(news.getCreatedAt()));
+    }
+
+    private NewsItemDTO toNewsItemDTO(NewsBO news) {
+        NewsItemDTO dto = new NewsItemDTO(
+                news.getId(),
+                news.getTitle(),
+                news.getAnnotation(),
+                news.getText(),
+                firstCategoryName(news),
+                news.getAuthor() == null ? null : news.getAuthor().getName(),
+                format(news.getCreatedAt()),
+                news.getRegion(),
+                tagNames(news),
+                new ArrayList<String>(news.getMedia()),
+                news.getRating()
+        );
+        dto.setStatus(news.getStatus() == null ? null : news.getStatus().name());
+        return dto;
+    }
+
+    private CategoryDTO toCategoryDTO(CategoryBO category) {
+        return new CategoryDTO(category.getId(), category.getName(), category.getDescription());
+    }
 
     private UserDTO toUserDTO(UserBO user) {
         return new UserDTO(user.getId(), user.getName(), user.getEmail(), user.isBlocked(), roleNames(user));
@@ -327,39 +418,51 @@ public final class FacadeController {
         return names;
     }
 
-    private UserBO findUserByEmail(String email) {
-        if (email == null) {
-            return null;
-        }
-        for (UserBO user : userStore.findAll()) {
-            if (email.equalsIgnoreCase(user.getEmail())) {
-                return user;
-            }
-        }
-        return null;
+    private String firstCategoryName(NewsBO news) {
+        return news.getCategories().isEmpty() ? null : news.getCategories().get(0).getName();
     }
 
-    private RoleBO findRoleByName(String name) {
-        if (name == null) {
-            return null;
+    private List<String> tagNames(NewsBO news) {
+        List<String> names = new ArrayList<String>();
+        for (TagBO tag : news.getTags()) {
+            names.add(tag.getName());
         }
-        for (RoleBO role : roleStore.findAll()) {
-            if (name.equalsIgnoreCase(role.getName())) {
-                return role;
-            }
-        }
-        return null;
+        return names;
     }
 
     private UserBO resolveAuthor(String name) {
-        if (name != null) {
-            for (UserBO user : userStore.findAll()) {
-                if (name.equalsIgnoreCase(user.getName())) {
-                    return user;
-                }
-            }
+        UserBO user = userController.findByName(name);
+        if (user != null) {
+            return user;
         }
         return new UserBO(null, isBlank(name) ? "Аноним" : name.trim(), null);
+    }
+
+    private boolean userExists(long id) {
+        try {
+            userController.findById(id);
+            return true;
+        } catch (NoSuchElementException e) {
+            return false;
+        }
+    }
+
+    private boolean newsExists(long id) {
+        try {
+            newsController.findById(id);
+            return true;
+        } catch (NoSuchElementException e) {
+            return false;
+        }
+    }
+
+    private boolean categoryExists(long id) {
+        try {
+            categoryController.findById(id);
+            return true;
+        } catch (NoSuchElementException e) {
+            return false;
+        }
     }
 
     private String format(Date date) {
@@ -370,46 +473,7 @@ public final class FacadeController {
         return value == null || value.trim().isEmpty();
     }
 
-    // --- Начальные (тестовые) данные ---
-
-    private void seedRoles() {
-        addRole("GUEST", Arrays.asList("news.view"));
-        addRole("USER", Arrays.asList("news.view", "news.comment", "news.favorite"));
-        addRole("JOURNALIST", Arrays.asList("news.view", "news.create", "news.edit", "news.delete"));
-        addRole("ADMIN", Arrays.asList("user.block", "user.role", "comment.moderate"));
-    }
-
-    private void addRole(String name, List<String> permissions) {
-        RoleBO role = new RoleBO(roleIds.next(), name, permissions);
-        roleStore.put(role.getId(), role);
-    }
-
-    private void seedUsers() {
-        journalist = new JournalistBO(userIds.next(), "Мария Соколова", "maria@example.com");
-        journalist.setPasswordHash("pass");
-        journalist.setRating(4.8);
-        journalist.addRole(findRoleByName("JOURNALIST"));
-        userStore.put(journalist.getId(), journalist);
-
-        UserBO reader = new UserBO(userIds.next(), "Иван Петров", "ivan@example.com");
-        reader.setPasswordHash("pass");
-        reader.addRole(findRoleByName("USER"));
-        userStore.put(reader.getId(), reader);
-
-        admin = new AdminBO(userIds.next(), "Алексей Админов", "admin@example.com");
-        admin.setPasswordHash("admin");
-        admin.addRole(findRoleByName("ADMIN"));
-        userStore.put(admin.getId(), admin);
-    }
-
-    private void seedComments() {
-        CommentBO comment = new CommentBO(
-                commentIds.next(),
-                1L,
-                "Отличная новость, давно ждал обновления портала!",
-                new Date(),
-                findUserByEmail("ivan@example.com")
-        );
-        commentStore.put(comment.getId(), comment);
+    private static String trimToNull(String value) {
+        return isBlank(value) ? null : value.trim();
     }
 }

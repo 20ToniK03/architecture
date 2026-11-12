@@ -1,60 +1,68 @@
 package controller.news;
 
-import view.api.dto.CategoryDTO;
-import view.api.dto.CreateNewsRequestDTO;
-import view.api.dto.NewsItemDTO;
-import view.api.dto.NewsTitleDTO;
-import view.api.dto.UpdateNewsRequestDTO;
-
 import java.util.List;
 
 /**
  * Интерфейс контроллера сущности «Новость» (ЛР4, паттерн «Декоратор»).
  *
- * <p>Фиксирует набор методов контроллера новостей, чтобы фасад и декораторы могли
- * работать с любой реализацией (обычной или «обёрнутой» в декоратор) единообразно.</p>
+ * <p>Фиксирует набор методов контроллера новостей. Фасад и декораторы работают
+ * с интерфейсом, поэтому обычный контроллер можно заменить «обёрнутым»
+ * в декоратор, не меняя код фасада.</p>
+ *
+ * <p>Начиная с ЛР5 контроллер возвращает бизнес-объекты {@link NewsBO},
+ * а преобразование в DTO выполняет фасад.</p>
  */
 public interface NewsInterface {
 
-    /** Все опубликованные новости. */
-    List<NewsTitleDTO> getAll();
+    /** Все новости из кэша контроллера. */
+    List<NewsBO> findAll();
 
-    /** Новость по идентификатору. */
-    NewsItemDTO getNewsById(long id);
+    /** Только опубликованные новости (видны читателю). */
+    List<NewsBO> findVisible();
 
-    /** Новости за последнюю неделю. */
-    List<NewsTitleDTO> getLastWeekNews();
+    /**
+     * Новость по идентификатору.
+     *
+     * @throws java.util.NoSuchElementException если новости нет
+     */
+    NewsBO findById(long id);
 
-    /** Поиск по ключевым словам. */
-    List<NewsTitleDTO> searchNews(List<String> keywords);
+    /** Опубликованная новость по идентификатору или {@code null}. */
+    NewsBO findVisibleById(long id);
 
-    /** Новости региона. */
-    List<NewsTitleDTO> getNewsByRegion(String region);
+    /** Новости указанной категории. */
+    List<NewsBO> findByCategory(long categoryId);
 
-    /** Все категории. */
-    List<CategoryDTO> getCategories();
+    /** Новости, созданные за последние {@code days} дней. */
+    List<NewsBO> findLatest(int days);
 
-    /** Создать новость. */
-    NewsItemDTO createNews(CreateNewsRequestDTO request);
+    /** Новости указанного региона. */
+    List<NewsBO> findByRegion(String region);
+
+    /** Поиск по ключевым словам (текст новости, теги, категории). */
+    List<NewsBO> search(List<String> keywords);
+
+    /** Создать новость-черновик. */
+    NewsBO create(NewsData data);
 
     /** Изменить новость. */
-    NewsItemDTO updateNews(long id, UpdateNewsRequestDTO request);
+    NewsBO update(long id, NewsData data);
 
-    /** Удалить новость. */
-    boolean deleteNews(long id);
+    /** Удалить новость. {@code false}, если её не было. */
+    boolean delete(long id);
 
     /** Опубликовать новость. */
-    NewsItemDTO publishNews(long id);
+    NewsBO publish(long id);
 
     /** Снять с публикации. */
-    NewsItemDTO unpublishNews(long id);
+    NewsBO unpublish(long id);
 
     /** Перевести в архив. */
-    NewsItemDTO archiveNews(long id);
+    NewsBO archive(long id);
 
-    /** Добавить тег. */
+    /** Добавить тег к новости. */
     boolean addTag(long newsId, String tagName);
 
-    /** Прикрепить медиафайл. */
+    /** Прикрепить медиафайл к новости. */
     boolean attachMedia(long newsId, String url);
 }

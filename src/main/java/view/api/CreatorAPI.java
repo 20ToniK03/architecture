@@ -21,8 +21,9 @@ import javax.ws.rs.core.Response;
  * API журналиста (актёр «Журналист», use case «Создать/Редактировать/Удалить
  * новость») - лабораторная работа №3.
  *
- * <p>Работает через {@link FacadeController} (внутри - {@code JournalistBO}:
- * {@code createNews}, {@code editNews}, {@code deleteNews}).</p>
+ * <p>Работает через {@link FacadeController}. Существованием новостей управляет
+ * {@code NewsController}, а бизнес-правила публикации проверяет сам
+ * бизнес-объект {@code NewsBO}.</p>
  */
 @Path("/creator")
 @Produces(MediaType.APPLICATION_JSON + ";charset=UTF-8")

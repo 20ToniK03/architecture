@@ -22,8 +22,9 @@ import java.util.List;
  * API администратора (актёр «Администратор», use case «Администрирование») -
  * лабораторная работа №3.
  *
- * <p>Работает через {@link FacadeController} (внутри - {@code AdminBO}:
- * {@code blockUser}, {@code assignRole}, {@code moderateComment}).</p>
+ * <p>Работает через {@link FacadeController}. Блокировку и назначение ролей
+ * выполняет {@code UserController}, модерацию комментариев -
+ * {@code CommentController}.</p>
  */
 @Path("/admin")
 @Produces(MediaType.APPLICATION_JSON + ";charset=UTF-8")

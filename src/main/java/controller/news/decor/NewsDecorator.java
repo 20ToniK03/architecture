@@ -1,20 +1,18 @@
 package controller.news.decor;
 
+import controller.news.NewsBO;
+import controller.news.NewsData;
 import controller.news.NewsInterface;
-import view.api.dto.CategoryDTO;
-import view.api.dto.CreateNewsRequestDTO;
-import view.api.dto.NewsItemDTO;
-import view.api.dto.NewsTitleDTO;
-import view.api.dto.UpdateNewsRequestDTO;
 
 import java.util.List;
 
 /**
- * Абстрактный декоратор контроллера новостей (ЛР4).
+ * Абстрактный декоратор контроллера новостей (ЛР4, ЛР5).
  *
- * <p>Класс-обёртка: реализует {@link NewsInterface}, хранит внутри декорируемый
- * контроллер и делегирует ему все вызовы. Наследники переопределяют только те
- * методы, поведение которых нужно дополнить.</p>
+ * <p>Реализует {@link NewsInterface}, хранит внутри декорируемый контроллер и
+ * делегирует ему все вызовы. Наследники переопределяют только те методы,
+ * поведение которых нужно дополнить. В ЛР5 декорируется именно контроллер,
+ * потому что операции со списками теперь реализованы в нём.</p>
  */
 public abstract class NewsDecorator implements NewsInterface {
 
@@ -25,63 +23,73 @@ public abstract class NewsDecorator implements NewsInterface {
     }
 
     @Override
-    public List<NewsTitleDTO> getAll() {
-        return newsController.getAll();
+    public List<NewsBO> findAll() {
+        return newsController.findAll();
     }
 
     @Override
-    public NewsItemDTO getNewsById(long id) {
-        return newsController.getNewsById(id);
+    public List<NewsBO> findVisible() {
+        return newsController.findVisible();
     }
 
     @Override
-    public List<NewsTitleDTO> getLastWeekNews() {
-        return newsController.getLastWeekNews();
+    public NewsBO findById(long id) {
+        return newsController.findById(id);
     }
 
     @Override
-    public List<NewsTitleDTO> searchNews(List<String> keywords) {
-        return newsController.searchNews(keywords);
+    public NewsBO findVisibleById(long id) {
+        return newsController.findVisibleById(id);
     }
 
     @Override
-    public List<NewsTitleDTO> getNewsByRegion(String region) {
-        return newsController.getNewsByRegion(region);
+    public List<NewsBO> findByCategory(long categoryId) {
+        return newsController.findByCategory(categoryId);
     }
 
     @Override
-    public List<CategoryDTO> getCategories() {
-        return newsController.getCategories();
+    public List<NewsBO> findLatest(int days) {
+        return newsController.findLatest(days);
     }
 
     @Override
-    public NewsItemDTO createNews(CreateNewsRequestDTO request) {
-        return newsController.createNews(request);
+    public List<NewsBO> findByRegion(String region) {
+        return newsController.findByRegion(region);
     }
 
     @Override
-    public NewsItemDTO updateNews(long id, UpdateNewsRequestDTO request) {
-        return newsController.updateNews(id, request);
+    public List<NewsBO> search(List<String> keywords) {
+        return newsController.search(keywords);
     }
 
     @Override
-    public boolean deleteNews(long id) {
-        return newsController.deleteNews(id);
+    public NewsBO create(NewsData data) {
+        return newsController.create(data);
     }
 
     @Override
-    public NewsItemDTO publishNews(long id) {
-        return newsController.publishNews(id);
+    public NewsBO update(long id, NewsData data) {
+        return newsController.update(id, data);
     }
 
     @Override
-    public NewsItemDTO unpublishNews(long id) {
-        return newsController.unpublishNews(id);
+    public boolean delete(long id) {
+        return newsController.delete(id);
     }
 
     @Override
-    public NewsItemDTO archiveNews(long id) {
-        return newsController.archiveNews(id);
+    public NewsBO publish(long id) {
+        return newsController.publish(id);
+    }
+
+    @Override
+    public NewsBO unpublish(long id) {
+        return newsController.unpublish(id);
+    }
+
+    @Override
+    public NewsBO archive(long id) {
+        return newsController.archive(id);
     }
 
     @Override

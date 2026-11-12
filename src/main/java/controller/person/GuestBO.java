@@ -3,22 +3,13 @@ package controller.person;
 /**
  * Бизнес-объект «Гость» (UML: {@code Guest}).
  *
- * <p>Неавторизованный посетитель: может просматривать/искать новости и
- * регистрироваться ({@code register(data): User}).</p>
+ * <p>Неавторизованный посетитель: может просматривать и искать новости.
+ * Регистрацией нового пользователя управляет {@code UserController},
+ * поэтому бизнес-объект гостя не создаёт других бизнес-объектов.</p>
  */
 public class GuestBO extends PersonBO {
 
     public GuestBO() {
         super(null, "Гость", null);
-    }
-
-    /** Регистрирует нового пользователя (метод {@code register} из UML). */
-    public UserBO register(RegistrationData data) {
-        if (data == null) {
-            return null;
-        }
-        UserBO user = new UserBO(null, data.getName(), data.getEmail());
-        user.setPasswordHash(data.getPassword());
-        return user;
     }
 }
