@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Tester - Сервис новостей</title>
+    <title>API Tester - Сервис новостей (ЛР1-ЛР5)</title>
     <style>
         :root {
             --bg: #f4f6fb;
@@ -287,6 +287,11 @@
             <button class="btn-send" id="btn-send">Отправить</button>
         </div>
         <textarea id="body" class="hidden" placeholder='{"title":"Заголовок","text":"Текст"}'></textarea>
+        <p class="hint">
+            Подсказка по ЛР5: <code>409</code> - нарушено бизнес-правило (например, смена
+            заголовка опубликованной новости), <code>400</code> - некорректное значение поля.
+            Запросы группы «ЛР5» выполняйте по порядку: они меняют состояние новости 1.
+        </p>
         <div class="response">
             <div class="resp-meta">
                 <span class="status" id="resp-status">-</span>
@@ -318,13 +323,19 @@
             { group: "Reader", method: "DELETE", path: "/reader/comments/1", desc: "Удалить комментарий" },
 
             { group: "Creator", method: "POST", path: "/creator/news", body: '{"title":"Тестовая новость","annotation":"Аннотация","text":"Текст","categoryId":1,"region":"Москва","tags":["тест"]}', desc: "Создать новость" },
-            { group: "Creator", method: "PUT", path: "/creator/news/1", body: '{"title":"Обновлённый заголовок"}', desc: "Изменить новость" },
+            { group: "Creator", method: "PUT", path: "/creator/news/1", body: '{"text":"Обновлённый текст новости"}', desc: "Изменить текст новости" },
             { group: "Creator", method: "DELETE", path: "/creator/news/1", desc: "Удалить новость" },
-            { group: "Creator", method: "POST", path: "/creator/news/7/publish", desc: "Опубликовать (черновик 7)" },
-            { group: "Creator", method: "POST", path: "/creator/news/7/unpublish", desc: "Снять с публикации" },
+            { group: "Creator", method: "POST", path: "/creator/news/8/publish", desc: "Опубликовать (черновик 8)" },
+            { group: "Creator", method: "POST", path: "/creator/news/7/unpublish", desc: "Снять с публикации (новость 7)" },
             { group: "Creator", method: "POST", path: "/creator/news/6/archive", desc: "В архив" },
             { group: "Creator", method: "POST", path: "/creator/news/1/tags?tag=java", desc: "Добавить тег" },
             { group: "Creator", method: "POST", path: "/creator/news/1/media?url=https://example.com/a.jpg", desc: "Прикрепить медиа" },
+
+            { group: "ЛР5: бизнес-правила", method: "PUT", path: "/creator/news/1", body: '{"title":"Новый заголовок"}', desc: "Заголовок опубликованной новости: 409" },
+            { group: "ЛР5: бизнес-правила", method: "PUT", path: "/creator/news/1", body: '{"text":"Текст опубликованной новости изменён"}', desc: "Текст опубликованной новости: 200" },
+            { group: "ЛР5: бизнес-правила", method: "POST", path: "/creator/news/1/unpublish", desc: "Снять новость 1 с публикации: 200" },
+            { group: "ЛР5: бизнес-правила", method: "PUT", path: "/creator/news/1", body: '{"title":"Заголовок черновика"}', desc: "Заголовок черновика: 200" },
+            { group: "ЛР5: бизнес-правила", method: "POST", path: "/creator/news/1/publish", desc: "Опубликовать новость 1 обратно: 200" },
 
             { group: "Admin", method: "GET", path: "/admin/users", desc: "Пользователи" },
             { group: "Admin", method: "GET", path: "/admin/roles", desc: "Роли" },
