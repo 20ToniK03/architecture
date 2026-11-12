@@ -12,6 +12,7 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 | 2 | **ЛР2** | Пакет `view/api/dto`, DTO на каждый метод, провайдер Jackson. Методы возвращают DTO → JSON. | DTO |
 | 3 | **ЛР3** | Бизнес-объекты (`NewsBO`, `CategoryBO`, иерархия `Person → User → Journalist/Admin`, `Role`, `Favorite`, `Tag`…), `FacadeController`, поиск по ключевым словам, статика + веб-интерфейс. | Facade, MVC |
 | 4 | **ЛР4** | Интерфейс `NewsInterface`, контроллер `NewsController`, абстрактный `NewsDecorator` и `PositiveNewsDecorator` (фильтрация позитивных новостей); фасад выбирает декоратор по дате. | Decorator |
+| 5 | **ЛР5** | Контроллер на каждый бизнес-объект (`CategoryController`, `TagController`, `RoleController`, `FavoriteController`, `UserController`, `CommentController`, `NewsController`), потокобезопасные кэши БО, бизнес-правила `NewsBO` (`changeTitle`, `publish`); преобразование БО в DTO осталось в фасаде. | Facade, MVC |
 
 ---
 
@@ -102,7 +103,42 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 
 ---
 
-## Полный API (по итогам ЛР1-4)
+## Лабораторная работа №5 - разделение бизнес-объекта и контроллера
+
+**Цель:** убрать из бизнес-объектов управление их существованием и распределить
+ответственность между отдельными контроллерами.
+
+1. Для каждого бизнес-объекта создан собственный контроллер:
+   * `NewsController` - новости, публикация, категории и теги новости;
+   * `CategoryController`, `TagController`, `RoleController`;
+   * `UserController` - регистрация, вход, блокировка и назначение ролей;
+   * `CommentController` - комментарии и модерация;
+   * `FavoriteController` - избранное пользователя.
+2. Бизнес-объекты больше не содержат методов `getAll`, `getById`, `create`, `save`,
+   `update`, `delete` и не управляют своим существованием:
+   * `JournalistBO` не создаёт, не редактирует и не удаляет новости;
+   * `AdminBO` не блокирует пользователей и не модерирует комментарии;
+   * `GuestBO` не регистрирует пользователей;
+   * `UserBO` не хранит список избранного.
+3. Каждый контроллер держит собственный потокобезопасный кэш бизнес-объектов
+   (`InMemoryStore` на `ConcurrentSkipListMap`).
+4. В `NewsBO` добавлены бизнес-правила:
+   * `changeTitle` - заголовок можно менять только у неопубликованной новости,
+     пустой заголовок запрещён;
+   * `publish` - нельзя опубликовать новость без заголовка.
+5. Нарушение правил API возвращает как `409 Conflict` (состояние новости) или
+   `400 Bad Request` (некорректное значение поля).
+6. `FacadeController` связывает контроллеры между собой и преобразует БО в DTO;
+   декоратор `PositiveNewsDecorator` по-прежнему оборачивает `NewsController`.
+
+**Проверка:** созданная новость сразу публикуется. Если попробовать изменить её
+заголовок через `PUT /creator/news/{id}`, сервер вернёт `409` с сообщением
+«Нельзя менять заголовок опубликованной новости». После `POST /creator/news/{id}/unpublish`
+заголовок снова можно менять.
+
+---
+
+## Полный API (по итогам ЛР1-5)
 
 ### ReaderAPI - `/reader`
 
@@ -156,12 +192,17 @@ news-app/
 ├── requests.http
 └── src/main/
     ├── java/
-    │   ├── model/                # InMemoryStore, IdSequence
-    │   ├── controller/           # FacadeController + бизнес-объекты
+    │   ├── model/                # InMemoryStore (кэш БО), IdSequence
+    │   ├── controller/           # FacadeController, SeedData, контроллеры БО
     │   │   ├── news/             # NewsBO, NewsController, NewsInterface, NewsData, NewsStatus
     │   │   │   └── decor/        # NewsDecorator, PositiveNewsDecorator
-    │   │   ├── person/           # PersonBO, GuestBO, UserBO, JournalistBO, AdminBO
-    │   │   └── ...               # comment/, category/, tag/, favorite/, role/, interfaces/
+    │   │   ├── person/           # PersonBO, GuestBO, UserBO, JournalistBO, AdminBO, UserController
+    │   │   ├── category/         # CategoryBO, CategoryController
+    │   │   ├── tag/              # TagBO, TagController
+    │   │   ├── comment/          # CommentBO, CommentController
+    │   │   ├── favorite/         # FavoriteBO, FavoriteController
+    │   │   ├── role/             # RoleBO, RoleController
+    │   │   └── interfaces/       # IAuthorizable, ICommentable, IPublishable
     │   └── view/
     │       ├── WebAppServer.java # запуск Undertow (localhost:8080)
     │       └── api/              # ReaderAPI, CreatorAPI, AdminAPI, StaticPageAPI, SingletonAPI, dto/
@@ -210,9 +251,13 @@ curl.exe -X PUT  "http://localhost:8080/reader/comments/1" -H "Content-Type: app
 curl.exe -X DELETE "http://localhost:8080/reader/comments/1"
 
 # Новости (создатель)
-curl.exe -X POST "http://localhost:8080/creator/news" -H "Content-Type: application/json" -d '{"title":"Test","text":"Body","categoryId":1}'
+curl.exe -X POST   "http://localhost:8080/creator/news" -H "Content-Type: application/json" -d '{"title":"Test","text":"Body","categoryId":1}'
+curl.exe -X POST   "http://localhost:8080/creator/news/1/unpublish"
 curl.exe -X PUT    "http://localhost:8080/creator/news/1" -H "Content-Type: application/json" -d '{"title":"New title"}'
 curl.exe -X DELETE "http://localhost:8080/creator/news/1"
+
+# ЛР5: заголовок опубликованной новости изменить нельзя (ответ 409)
+curl.exe -X PUT "http://localhost:8080/creator/news/2" -H "Content-Type: application/json" -d '{"title":"Another title"}'
 
 # Администратор
 curl.exe -X POST "http://localhost:8080/admin/users/2/block"
