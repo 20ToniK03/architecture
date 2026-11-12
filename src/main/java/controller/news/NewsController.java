@@ -196,10 +196,7 @@ public class NewsController implements NewsInterface {
             }
         }
         linkTags(news, data.getTagNames());
-        news.touch();
-        if (news.getStatus() == NewsStatus.PUBLISHED) {
-            news.setStatus(NewsStatus.EDITED);
-        }
+        news.markEdited();
         return news;
     }
 

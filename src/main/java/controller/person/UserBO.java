@@ -58,8 +58,4 @@ public class UserBO extends PersonBO {
     public List<RoleBO> getRoles() {
         return roles;
     }
-
-    public void setRoles(List<RoleBO> roles) {
-        this.roles = roles == null ? new ArrayList<RoleBO>() : roles;
-    }
 }

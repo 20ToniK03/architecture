@@ -18,9 +18,6 @@ public class CommentBO {
     private UserBO author;
     private boolean approved;
 
-    public CommentBO() {
-    }
-
     public CommentBO(Long id, Long newsId, String text, Date createdAt, UserBO author) {
         this.id = id;
         this.newsId = newsId;
@@ -35,51 +32,37 @@ public class CommentBO {
         this.text = text;
     }
 
-    public Long getId() {
-        return id;
+    /** Одобрить комментарий при модерации. */
+    public void approve() {
+        this.approved = true;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    /** Отклонить комментарий при модерации. */
+    public void reject() {
+        this.approved = false;
+    }
+
+    public Long getId() {
+        return id;
     }
 
     public Long getNewsId() {
         return newsId;
     }
 
-    public void setNewsId(Long newsId) {
-        this.newsId = newsId;
-    }
-
     public String getText() {
         return text;
-    }
-
-    public void setText(String text) {
-        this.text = text;
     }
 
     public Date getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(Date createdAt) {
-        this.createdAt = createdAt;
-    }
-
     public UserBO getAuthor() {
         return author;
     }
 
-    public void setAuthor(UserBO author) {
-        this.author = author;
-    }
-
     public boolean isApproved() {
         return approved;
-    }
-
-    public void setApproved(boolean approved) {
-        this.approved = approved;
     }
 }

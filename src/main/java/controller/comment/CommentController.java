@@ -101,11 +101,11 @@ public class CommentController {
     public boolean moderate(long id, String action) {
         CommentBO comment = findById(id);
         if ("approve".equalsIgnoreCase(action)) {
-            comment.setApproved(true);
+            comment.approve();
             return true;
         }
         if ("reject".equalsIgnoreCase(action)) {
-            comment.setApproved(false);
+            comment.reject();
             return true;
         }
         return false;

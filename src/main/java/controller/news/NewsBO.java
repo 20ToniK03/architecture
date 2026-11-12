@@ -167,6 +167,20 @@ public class NewsBO implements IPublishable, ICommentable {
         }
     }
 
+    /**
+     * Отметить новость как изменённую после редактирования.
+     *
+     * <p>Опубликованная новость переходит в состояние {@code EDITED},
+     * черновик и архив сохраняют свой статус. Дата изменения обновляется
+     * всегда.</p>
+     */
+    public void markEdited() {
+        if (isPublished()) {
+            this.status = NewsStatus.EDITED;
+        }
+        touch();
+    }
+
     /** Обновить дату изменения. */
     public void touch() {
         this.updatedAt = new Date();
@@ -218,10 +232,6 @@ public class NewsBO implements IPublishable, ICommentable {
         return status;
     }
 
-    public void setStatus(NewsStatus status) {
-        this.status = status;
-    }
-
     public JournalistBO getAuthor() {
         return author;
     }
@@ -234,20 +244,8 @@ public class NewsBO implements IPublishable, ICommentable {
         return categories;
     }
 
-    public void setCategories(List<CategoryBO> categories) {
-        this.categories = categories == null ? new ArrayList<CategoryBO>() : categories;
-    }
-
     public List<TagBO> getTags() {
         return tags;
-    }
-
-    public void setTags(List<TagBO> tags) {
-        this.tags = tags == null ? new ArrayList<TagBO>() : tags;
-    }
-
-    public void setComments(List<CommentBO> comments) {
-        this.comments = comments == null ? new ArrayList<CommentBO>() : comments;
     }
 
     public String getAnnotation() {
@@ -268,10 +266,6 @@ public class NewsBO implements IPublishable, ICommentable {
 
     public List<String> getMedia() {
         return media;
-    }
-
-    public void setMedia(List<String> media) {
-        this.media = media == null ? new ArrayList<String>() : media;
     }
 
     public int getRating() {
