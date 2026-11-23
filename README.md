@@ -13,6 +13,7 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 | 3 | **ЛР3** | Бизнес-объекты (`NewsBO`, `CategoryBO`, иерархия `Person → User → Journalist/Admin`, `Role`, `Favorite`, `Tag`…), `FacadeController`, поиск по ключевым словам, статика + веб-интерфейс. | Facade, MVC |
 | 4 | **ЛР4** | Интерфейс `NewsInterface`, контроллер `NewsController`, абстрактный `NewsDecorator` и `PositiveNewsDecorator` (фильтрация позитивных новостей); фасад выбирает декоратор по дате. | Decorator |
 | 5 | **ЛР5** | Контроллер на каждый бизнес-объект (`CategoryController`, `TagController`, `RoleController`, `FavoriteController`, `UserController`, `CommentController`, `NewsController`), потокобезопасные кэши БО, бизнес-правила `NewsBO` (`changeTitle`, `publish`); преобразование БО в DTO осталось в фасаде. | Facade, MVC |
+| 6 | **ЛР6** | Пакет `model/data` с DO-классами и пакет `controller/repository` с репозиторием на каждый контроллер; тестовые наборы данных лежат в репозиториях. `NewsBO` разделён на `NewsDO` (ядро + превью) и `NewsContentDO` (контент). | Repository |
 
 ---
 
@@ -141,7 +142,41 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 
 ---
 
-## Полный API (по итогам ЛР1-5)
+## Лабораторная работа №6 - паттерн «Репозиторий»
+
+**Цель:** вынести хранение данных из контроллеров в отдельный слой доступа к
+данным (репозитории) и описать модель данных через DO-классы.
+
+1. Из бизнес-объектов выделены модели данных - DO-классы в пакете `model/data`:
+   * `NewsDO` - «ядро + превью» новости: заголовок, анонс, регион, рейтинг,
+     статус и ссылки на автора/категории/теги (хранятся идентификаторами);
+   * `NewsContentDO` - полный текст новости, нужен только при открытии статьи
+     (другая модель данных, имитирует документное хранилище);
+   * `CategoryDO`, `TagDO`, `RoleDO`, `UserDO`, `CommentDO`, `FavoriteDO` -
+     по одному DO-классу на остальные бизнес-объекты.
+2. Для каждого контроллера создан класс-репозиторий в пакете `controller/repository`
+   (общий интерфейс `IRepository<T>`): `NewsRepository`, `CategoryRepository`,
+   `TagRepository`, `RoleRepository`, `UserRepository`, `CommentRepository`,
+   `FavoriteRepository`. Репозиторий преобразует BO в DO и обратно и выдаёт
+   идентификаторы.
+3. В репозитории добавлены тестовые наборы данных (роли, пользователи,
+   категории, теги, новости и комментарий) - внешние СУБД не подключаются,
+   данные хранятся в потокобезопасных in-memory-картах. `NewsRepository` держит
+   два хранилища: `sqlStore` (`NewsDO`) и `nosqlStore` (`NewsContentDO`).
+4. Контроллеры загружают кэш из своего репозитория при старте, а каждую
+   изменяющую операцию сразу сохраняют в репозиторий. Класс `SeedData` удалён:
+   начальные данные теперь живут в репозиториях.
+5. В `NewsBO` добавлен конструктор, восстанавливающий статус из хранилища;
+   статус по-прежнему меняется только бизнес-методами (`publish`, `unpublish`,
+   `archive`, `markEdited`).
+
+**Проверка:** после запуска читателю доступны 6 опубликованных новостей
+(негативная «Кризис на рынке недвижимости» скрыта декоратором), а создание,
+публикация и модерация по-прежнему работают через API.
+
+---
+
+## Полный API (по итогам ЛР1-6)
 
 ### ReaderAPI - `/reader`
 
@@ -195,8 +230,10 @@ news-app/
 ├── requests.http
 └── src/main/
     ├── java/
-    │   ├── model/                # InMemoryStore (кэш БО), IdSequence
-    │   ├── controller/           # FacadeController, SeedData, контроллеры БО
+    │   ├── model/                # IdSequence, InMemoryStore (кэш БО)
+    │   │   └── data/             # DO-классы: NewsDO, NewsContentDO, CategoryDO, TagDO, RoleDO, UserDO, CommentDO, FavoriteDO
+    │   ├── controller/           # FacadeController, контроллеры БО
+    │   │   ├── repository/       # IRepository, NewsRepository, CategoryRepository, TagRepository, RoleRepository, UserRepository, CommentRepository, FavoriteRepository
     │   │   ├── news/             # NewsBO, NewsController, NewsInterface, NewsData, NewsStatus
     │   │   │   └── decor/        # NewsDecorator, PositiveNewsDecorator
     │   │   ├── person/           # PersonBO, GuestBO, UserBO, JournalistBO, AdminBO, UserController

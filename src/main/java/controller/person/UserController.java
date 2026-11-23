@@ -1,7 +1,7 @@
 package controller.person;
 
+import controller.repository.UserRepository;
 import controller.role.RoleBO;
-import model.IdSequence;
 import model.InMemoryStore;
 
 import java.util.ArrayList;
@@ -9,17 +9,29 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * Контроллер сущности «Пользователь» (ЛР5).
+ * Контроллер сущности «Пользователь» (ЛР5, ЛР6).
  *
  * <p>Отвечает за существование пользователей: кэш, выдача идентификаторов,
  * регистрация, вход, блокировка и назначение ролей. Уникальность email,
  * как и любой поиск по кэшу, - тоже ответственность контроллера.
- * Бизнес-объект при этом проверяет только корректность своих полей.</p>
+ * Бизнес-объект при этом проверяет только корректность своих полей.
+ * Начиная с ЛР6 хранение данных вынесено в {@link UserRepository}.</p>
  */
 public class UserController {
 
     private final InMemoryStore<UserBO> cache = new InMemoryStore<UserBO>();
-    private final IdSequence ids = new IdSequence();
+    private final UserRepository repository;
+
+    public UserController(UserRepository repository) {
+        this.repository = repository;
+        loadFromStorage();
+    }
+
+    private void loadFromStorage() {
+        for (UserBO user : repository.findAll()) {
+            cache.put(user.getId(), user);
+        }
+    }
 
     /** Все пользователи из кэша. */
     public List<UserBO> findAll() {
@@ -72,12 +84,10 @@ public class UserController {
 
     /**
      * Положить готовый бизнес-объект в кэш. Если идентификатора нет,
-     * он выдаётся здесь: этим занимается контроллер, а не бизнес-объект.
+     * его выдаёт репозиторий: этим занимается хранилище, а не бизнес-объект.
      */
     public UserBO save(UserBO user) {
-        if (user.getId() == null) {
-            user.setId(ids.next());
-        }
+        repository.save(user);
         cache.put(user.getId(), user);
         return user;
     }
@@ -115,6 +125,7 @@ public class UserController {
             return false;
         }
         user.setBlocked(true);
+        repository.save(user);
         return true;
     }
 
@@ -125,12 +136,17 @@ public class UserController {
             return false;
         }
         user.addRole(role);
+        repository.save(user);
         return true;
     }
 
-    /** Удалить пользователя из кэша. {@code false}, если его не было. */
+    /** Удалить пользователя из кэша и репозитория. {@code false}, если его не было. */
     public boolean delete(long id) {
-        return cache.remove(id);
+        boolean removed = cache.remove(id);
+        if (removed) {
+            repository.delete(id);
+        }
+        return removed;
     }
 
     /** Идентификаторы всех пользователей (для отладочных сценариев). */

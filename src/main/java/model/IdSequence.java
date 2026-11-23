@@ -25,4 +25,15 @@ public class IdSequence {
     public synchronized long peek() {
         return next;
     }
+
+    /**
+     * Поднять счётчик до указанного значения, если оно больше текущего.
+     * Используется после загрузки тестовых данных из репозитория: новые
+     * идентификаторы не должны совпадать с уже сохранёнными.
+     */
+    public synchronized void ensureAtLeast(long value) {
+        if (value > next) {
+            next = value;
+        }
+    }
 }

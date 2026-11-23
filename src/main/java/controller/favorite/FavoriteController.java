@@ -1,6 +1,6 @@
 package controller.favorite;
 
-import model.IdSequence;
+import controller.repository.FavoriteRepository;
 import model.InMemoryStore;
 
 import java.util.ArrayList;
@@ -8,16 +8,28 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * Контроллер сущности «Избранное» (ЛР5).
+ * Контроллер сущности «Избранное» (ЛР5, ЛР6).
  *
  * <p>Отвечает за существование записей избранного: хранит их в кэше и
  * не допускает дублей «пользователь + новость». Сама новость и пользователь
- * здесь не изменяются, связи хранятся идентификаторами.</p>
+ * здесь не изменяются, связи хранятся идентификаторами. Начиная с ЛР6
+ * хранение данных вынесено в {@link FavoriteRepository}.</p>
  */
 public class FavoriteController {
 
     private final InMemoryStore<FavoriteBO> cache = new InMemoryStore<FavoriteBO>();
-    private final IdSequence ids = new IdSequence();
+    private final FavoriteRepository repository;
+
+    public FavoriteController(FavoriteRepository repository) {
+        this.repository = repository;
+        loadFromStorage();
+    }
+
+    private void loadFromStorage() {
+        for (FavoriteBO favorite : repository.findAll()) {
+            cache.put(favorite.getId(), favorite);
+        }
+    }
 
     /** Все записи избранного из кэша. */
     public List<FavoriteBO> findAll() {
@@ -40,7 +52,8 @@ public class FavoriteController {
         if (find(userId, newsId) != null) {
             return true;
         }
-        FavoriteBO favorite = new FavoriteBO(ids.next(), new Date(), userId, newsId);
+        FavoriteBO favorite = new FavoriteBO(null, new Date(), userId, newsId);
+        repository.save(favorite);
         cache.put(favorite.getId(), favorite);
         return true;
     }
@@ -51,13 +64,16 @@ public class FavoriteController {
         if (favorite == null) {
             return false;
         }
-        return cache.remove(favorite.getId());
+        cache.remove(favorite.getId());
+        repository.delete(favorite.getId());
+        return true;
     }
 
     /** Удалить всё избранное пользователя (например, при удалении пользователя). */
     public void removeByUser(long userId) {
         for (FavoriteBO favorite : findByUser(userId)) {
             cache.remove(favorite.getId());
+            repository.delete(favorite.getId());
         }
     }
 

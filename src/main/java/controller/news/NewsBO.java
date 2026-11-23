@@ -53,6 +53,17 @@ public class NewsBO implements IPublishable, ICommentable {
         this.text = text;
     }
 
+    /**
+     * Конструктор для восстановления сохранённой новости (ЛР6).
+     * Статус задаётся только при загрузке из репозитория, а менять его
+     * в работающем приложении можно лишь бизнес-методами {@link #publish()},
+     * {@link #unpublish()}, {@link #archive()} и {@link #markEdited()}.
+     */
+    public NewsBO(Long id, String title, String text, NewsStatus status) {
+        this(id, title, text);
+        this.status = status == null ? NewsStatus.DRAFT : status;
+    }
+
     // IPublishable
 
     @Override

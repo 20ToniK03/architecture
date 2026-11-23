@@ -1,22 +1,34 @@
 package controller.tag;
 
-import model.IdSequence;
+import controller.repository.TagRepository;
 import model.InMemoryStore;
 
 import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * Контроллер сущности «Тег» (ЛР5).
+ * Контроллер сущности «Тег» (ЛР5, ЛР6).
  *
  * <p>Хранит теги в кэше и отвечает за их существование. Метод
  * {@link #findOrCreate(String)} совмещает поиск и создание: теги уникальны
- * по названию без учёта регистра.</p>
+ * по названию без учёта регистра. Начиная с ЛР6 хранение данных вынесено в
+ * {@link TagRepository}.</p>
  */
 public class TagController {
 
     private final InMemoryStore<TagBO> cache = new InMemoryStore<TagBO>();
-    private final IdSequence ids = new IdSequence();
+    private final TagRepository repository;
+
+    public TagController(TagRepository repository) {
+        this.repository = repository;
+        loadFromStorage();
+    }
+
+    private void loadFromStorage() {
+        for (TagBO tag : repository.findAll()) {
+            cache.put(tag.getId(), tag);
+        }
+    }
 
     /** Все теги из кэша. */
     public List<TagBO> findAll() {
@@ -58,15 +70,20 @@ public class TagController {
         return create(name);
     }
 
-    /** Создать тег и положить его в кэш. */
+    /** Создать тег и сохранить его в репозитории. */
     public TagBO create(String name) {
-        TagBO tag = new TagBO(ids.next(), name);
+        TagBO tag = new TagBO(null, name);
+        repository.save(tag);
         cache.put(tag.getId(), tag);
         return tag;
     }
 
     /** Удалить тег. {@code false}, если его не было. */
     public boolean delete(long id) {
-        return cache.remove(id);
+        boolean removed = cache.remove(id);
+        if (removed) {
+            repository.delete(id);
+        }
+        return removed;
     }
 }

@@ -46,6 +46,11 @@ public class CommentBO {
         return id;
     }
 
+    /** Идентификатор назначает репозиторий при сохранении. */
+    public void setId(Long id) {
+        this.id = id;
+    }
+
     public Long getNewsId() {
         return newsId;
     }

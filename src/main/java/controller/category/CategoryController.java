@@ -1,23 +1,36 @@
 package controller.category;
 
-import model.IdSequence;
+import controller.repository.CategoryRepository;
 import model.InMemoryStore;
 
 import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * Контроллер сущности «Категория» (ЛР5).
+ * Контроллер сущности «Категория» (ЛР5, ЛР6).
  *
  * <p>Отвечает за существование экземпляров {@link CategoryBO}: хранит их в кэше,
  * выдаёт идентификаторы и выполняет операции чтения/создания/изменения/удаления.
  * Проверка корректности полей - задача самого бизнес-объекта, преобразование
- * в DTO - задача фасада.</p>
+ * в DTO - задача фасада. Начиная с ЛР6 хранение данных вынесено в
+ * {@link CategoryRepository}: кэш загружается из репозитория, а каждая
+ * изменяющая операция сразу сохраняется в нём.</p>
  */
 public class CategoryController {
 
     private final InMemoryStore<CategoryBO> cache = new InMemoryStore<CategoryBO>();
-    private final IdSequence ids = new IdSequence();
+    private final CategoryRepository repository;
+
+    public CategoryController(CategoryRepository repository) {
+        this.repository = repository;
+        loadFromStorage();
+    }
+
+    private void loadFromStorage() {
+        for (CategoryBO category : repository.findAll()) {
+            cache.put(category.getId(), category);
+        }
+    }
 
     /** Все категории из кэша. */
     public List<CategoryBO> findAll() {
@@ -50,9 +63,10 @@ public class CategoryController {
         return null;
     }
 
-    /** Создать категорию и положить её в кэш. */
+    /** Создать категорию и сохранить её в репозитории. */
     public CategoryBO create(String name, String description) {
-        CategoryBO category = new CategoryBO(ids.next(), name, description);
+        CategoryBO category = new CategoryBO(null, name, description);
+        repository.save(category);
         cache.put(category.getId(), category);
         return category;
     }
@@ -66,11 +80,16 @@ public class CategoryController {
         if (description != null) {
             category.setDescription(description);
         }
+        repository.save(category);
         return category;
     }
 
     /** Удалить категорию. {@code false}, если её не было. */
     public boolean delete(long id) {
-        return cache.remove(id);
+        boolean removed = cache.remove(id);
+        if (removed) {
+            repository.delete(id);
+        }
+        return removed;
     }
 }

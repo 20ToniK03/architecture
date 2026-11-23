@@ -15,6 +15,13 @@ import controller.person.JournalistBO;
 import controller.person.RegistrationData;
 import controller.person.UserBO;
 import controller.person.UserController;
+import controller.repository.CategoryRepository;
+import controller.repository.CommentRepository;
+import controller.repository.FavoriteRepository;
+import controller.repository.NewsRepository;
+import controller.repository.RoleRepository;
+import controller.repository.TagRepository;
+import controller.repository.UserRepository;
 import controller.role.RoleBO;
 import controller.role.RoleController;
 import controller.tag.TagBO;
@@ -57,22 +64,35 @@ public final class FacadeController {
 
     private static final FacadeController INSTANCE = new FacadeController();
 
-    private final RoleController roleController = new RoleController();
-    private final UserController userController = new UserController();
-    private final CategoryController categoryController = new CategoryController();
-    private final TagController tagController = new TagController();
-    private final FavoriteController favoriteController = new FavoriteController();
+    // Репозитории (ЛР6): владеют данными и тестовыми наборами, создаются в
+    // порядке зависимостей - от самых простых к тем, что ссылаются на другие.
+    private final RoleRepository roleRepository = new RoleRepository();
+    private final UserRepository userRepository = new UserRepository(roleRepository);
+    private final CategoryRepository categoryRepository = new CategoryRepository();
+    private final TagRepository tagRepository = new TagRepository();
+    private final FavoriteRepository favoriteRepository = new FavoriteRepository();
+    private final NewsRepository newsRepository = new NewsRepository(categoryRepository, tagRepository, userRepository);
+    private final CommentRepository commentRepository = new CommentRepository(userRepository);
+
+    private final RoleController roleController;
+    private final UserController userController;
+    private final CategoryController categoryController;
+    private final TagController tagController;
+    private final FavoriteController favoriteController;
 
     private final NewsInterface newsController;
     private final CommentController commentController;
 
     private FacadeController() {
-        SeedData.seedRoles(roleController);
-        JournalistBO journalist = SeedData.seedUsers(userController, roleController);
+        this.roleController = new RoleController(roleRepository);
+        this.userController = new UserController(userRepository);
+        this.categoryController = new CategoryController(categoryRepository);
+        this.tagController = new TagController(tagRepository);
+        this.favoriteController = new FavoriteController(favoriteRepository);
+
+        JournalistBO journalist = findDefaultAuthor();
         this.newsController = createNewsController(journalist);
-        this.commentController = new CommentController(newsController);
-        SeedData.seedContent(categoryController, tagController, newsController,
-                userController, commentController);
+        this.commentController = new CommentController(commentRepository, newsController);
     }
 
     public static FacadeController getInstance() {
@@ -339,11 +359,20 @@ public final class FacadeController {
     }
 
     private NewsInterface createNewsController(JournalistBO journalist) {
-        NewsController controller = new NewsController(categoryController, tagController, journalist);
+        NewsController controller = new NewsController(newsRepository, categoryController, tagController, journalist);
         if (isEndOfYearNear()) {
             return new PositiveNewsDecorator(controller);
         }
         return controller;
+    }
+
+    /** Автор новостей по умолчанию - тестовый журналист из репозитория. */
+    private JournalistBO findDefaultAuthor() {
+        UserBO user = userRepository.findById(1L);
+        if (user instanceof JournalistBO) {
+            return (JournalistBO) user;
+        }
+        return new JournalistBO(1L, "Мария Соколова", UserRepository.JOURNALIST_EMAIL);
     }
 
     // --- Преобразование BO -> DTO ---

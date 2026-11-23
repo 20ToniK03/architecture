@@ -3,8 +3,8 @@ package controller.news;
 import controller.category.CategoryBO;
 import controller.category.CategoryController;
 import controller.person.JournalistBO;
+import controller.repository.NewsRepository;
 import controller.tag.TagController;
-import model.IdSequence;
 import model.InMemoryStore;
 
 import java.util.ArrayList;
@@ -14,31 +14,41 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 
 /**
- * Контроллер сущности «Новость» (ЛР4, ЛР5).
+ * Контроллер сущности «Новость» (ЛР4, ЛР5, ЛР6).
  *
- * <p>Отвечает за существование новостей: кэш, идентификаторы, создание,
- * изменение, удаление и смена состояния публикации. Никаких DTO здесь нет,
- * преобразование выполняет фасад. Категории и теги не хранятся в этом
- * контроллере: за них отвечают {@link CategoryController} и
- * {@link TagController}.</p>
+ * <p>Отвечает за существование новостей: кэш, создание, изменение, удаление
+ * и смена состояния публикации. Никаких DTO здесь нет, преобразование
+ * выполняет фасад. Категории и теги не хранятся в этом контроллере: за них
+ * отвечают {@link CategoryController} и {@link TagController}. Начиная с ЛР6
+ * хранение данных вынесено в {@link NewsRepository}: кэш загружается из
+ * репозитория, а изменения сохраняются в нём.</p>
  */
 public class NewsController implements NewsInterface {
 
     private static final long DAY_MILLIS = 24L * 60L * 60L * 1000L;
 
     private final InMemoryStore<NewsBO> cache = new InMemoryStore<NewsBO>();
-    private final IdSequence ids = new IdSequence();
+    private final NewsRepository repository;
 
     private final CategoryController categoryController;
     private final TagController tagController;
     private final JournalistBO defaultAuthor;
 
-    public NewsController(CategoryController categoryController,
+    public NewsController(NewsRepository repository,
+                          CategoryController categoryController,
                           TagController tagController,
                           JournalistBO defaultAuthor) {
+        this.repository = repository;
         this.categoryController = categoryController;
         this.tagController = tagController;
         this.defaultAuthor = defaultAuthor;
+        loadFromStorage();
+    }
+
+    private void loadFromStorage() {
+        for (NewsBO news : repository.findAll()) {
+            cache.put(news.getId(), news);
+        }
     }
 
     // --- Чтение ---
@@ -152,7 +162,7 @@ public class NewsController implements NewsInterface {
         if (data == null) {
             throw new IllegalArgumentException("Нет данных для создания новости");
         }
-        NewsBO news = new NewsBO(ids.next(), data.getTitle(), data.getText());
+        NewsBO news = new NewsBO(null, data.getTitle(), data.getText());
         news.setAuthor(defaultAuthor);
         news.setAnnotation(data.getAnnotation());
         news.setRegion(data.getRegion());
@@ -166,6 +176,7 @@ public class NewsController implements NewsInterface {
         }
         linkTags(news, data.getTagNames());
         news.setRating(0);
+        repository.save(news);
         cache.put(news.getId(), news);
         return news;
     }
@@ -197,6 +208,7 @@ public class NewsController implements NewsInterface {
         }
         linkTags(news, data.getTagNames());
         news.markEdited();
+        repository.save(news);
         return news;
     }
 
@@ -205,13 +217,18 @@ public class NewsController implements NewsInterface {
         if (cache.find(id) == null) {
             return false;
         }
-        return cache.remove(id);
+        boolean removed = cache.remove(id);
+        if (removed) {
+            repository.delete(id);
+        }
+        return removed;
     }
 
     @Override
     public NewsBO publish(long id) {
         NewsBO news = findById(id);
         news.publish();
+        repository.save(news);
         return news;
     }
 
@@ -219,6 +236,7 @@ public class NewsController implements NewsInterface {
     public NewsBO unpublish(long id) {
         NewsBO news = findById(id);
         news.unpublish();
+        repository.save(news);
         return news;
     }
 
@@ -226,6 +244,7 @@ public class NewsController implements NewsInterface {
     public NewsBO archive(long id) {
         NewsBO news = findById(id);
         news.archive();
+        repository.save(news);
         return news;
     }
 
@@ -236,6 +255,7 @@ public class NewsController implements NewsInterface {
         }
         NewsBO news = findById(newsId);
         news.addTag(tagController.findOrCreate(tagName.trim()));
+        repository.save(news);
         return true;
     }
 
@@ -246,6 +266,7 @@ public class NewsController implements NewsInterface {
         }
         NewsBO news = findById(newsId);
         news.addMedia(url.trim());
+        repository.save(news);
         return true;
     }
 
@@ -275,13 +296,10 @@ public class NewsController implements NewsInterface {
         return value == null || value.trim().isEmpty();
     }
 
-    /** Служебный метод для начальных данных: положить готовый объект в кэш. */
+    /** Служебный метод для начальных данных: положить готовый объект в кэш и репозиторий. */
     public NewsBO save(NewsBO news) {
-        if (news.getId() == null) {
-            news.setId(ids.next());
-        }
+        repository.save(news);
         cache.put(news.getId(), news);
         return news;
     }
-
 }

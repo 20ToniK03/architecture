@@ -3,7 +3,7 @@ package controller.comment;
 import controller.news.NewsBO;
 import controller.news.NewsInterface;
 import controller.person.UserBO;
-import model.IdSequence;
+import controller.repository.CommentRepository;
 import model.InMemoryStore;
 
 import java.util.ArrayList;
@@ -12,22 +12,30 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * Контроллер сущности «Комментарий» (ЛР5).
+ * Контроллер сущности «Комментарий» (ЛР5, ЛР6).
  *
- * <p>Отвечает за существование комментариев: кэш, идентификаторы, поиск по
- * новости и модерация. Связь с новостью поддерживается в двух местах:
- * в собственном кэше контроллера и в коллекции бизнес-объекта новости
- * (композиция {@code News *-- Comment}).</p>
+ * <p>Отвечает за существование комментариев: кэш, поиск по новости и модерация.
+ * Связь с новостью поддерживается в двух местах: в собственном кэше контроллера
+ * и в коллекции бизнес-объекта новости (композиция {@code News *-- Comment}).
+ * Начиная с ЛР6 хранение данных вынесено в {@link CommentRepository}.</p>
  */
 public class CommentController {
 
     private final InMemoryStore<CommentBO> cache = new InMemoryStore<CommentBO>();
-    private final IdSequence ids = new IdSequence();
+    private final CommentRepository repository;
 
     private final NewsInterface newsController;
 
-    public CommentController(NewsInterface newsController) {
+    public CommentController(CommentRepository repository, NewsInterface newsController) {
+        this.repository = repository;
         this.newsController = newsController;
+        loadFromStorage();
+    }
+
+    private void loadFromStorage() {
+        for (CommentBO comment : repository.findAll()) {
+            cache.put(comment.getId(), comment);
+        }
     }
 
     /** Все комментарии из кэша. */
@@ -59,9 +67,10 @@ public class CommentController {
         return result;
     }
 
-    /** Создать комментарий и связать его с новостью. */
+    /** Создать комментарий, сохранить в репозитории и связать с новостью. */
     public CommentBO create(NewsBO news, String text, UserBO author) {
-        CommentBO comment = new CommentBO(ids.next(), news.getId(), text, new Date(), author);
+        CommentBO comment = new CommentBO(null, news.getId(), text, new Date(), author);
+        repository.save(comment);
         cache.put(comment.getId(), comment);
         news.addComment(comment);
         return comment;
@@ -71,6 +80,7 @@ public class CommentController {
     public CommentBO update(long id, String text) {
         CommentBO comment = findById(id);
         comment.edit(text);
+        repository.save(comment);
         return comment;
     }
 
@@ -81,6 +91,7 @@ public class CommentController {
             return false;
         }
         cache.remove(id);
+        repository.delete(id);
         if (comment.getNewsId() != null) {
             try {
                 newsController.findById(comment.getNewsId()).removeComment(id);
@@ -102,10 +113,12 @@ public class CommentController {
         CommentBO comment = findById(id);
         if ("approve".equalsIgnoreCase(action)) {
             comment.approve();
+            repository.save(comment);
             return true;
         }
         if ("reject".equalsIgnoreCase(action)) {
             comment.reject();
+            repository.save(comment);
             return true;
         }
         return false;
