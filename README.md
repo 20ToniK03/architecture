@@ -195,7 +195,8 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 2. Добавлены настройки подключения к СУБД:
    * в `pom.xml` - зависимости `sqlite-jdbc` (3.45.1.0) и `mongodb-driver-sync` (5.1.1);
    * `Database.SQLITE_URL = jdbc:sqlite:news.db` - файл базы создаётся рядом с приложением;
-   * `Database.MONGO_URI = mongodb://localhost:27017`, имя базы `newsdb`.
+   * `Database.MONGO_URI = mongodb://localhost:27017/?serverSelectionTimeoutMS=2000`,
+     имя базы `newsdb` (как поднять сервер - см. «Как запустить MongoDB»).
 3. Репозитории переведены с карт в памяти на DAO: `NewsRepository` держит
    `sqlDao` (ядро `NewsDO`) и `nosqlDao` (контент `NewsContentDO`), остальные
    репозитории - по одному `sqlDao`. Тестовые наборы записываются в БД при
@@ -541,6 +542,56 @@ java -jar target/news-app.jar
   базы `newsdb`). Перед запуском нужно поднять сервер MongoDB на
   `localhost:27017`. Если сервер недоступен, контент временно хранится в
   памяти, и приложение продолжает работать.
+
+### Как запустить MongoDB
+
+Параметры подключения заданы в `src/main/java/model/dao/Database.java`:
+
+```java
+public static final String MONGO_URI = "mongodb://localhost:27017/?serverSelectionTimeoutMS=2000";
+public static final String MONGO_DB_NAME = "newsdb";
+// коллекция news_contents задаётся при создании DAO в NewsRepository
+```
+
+Сервер MongoDB приложение не запускает - его нужно поднять отдельно, любым
+из способов ниже.
+
+**Способ 1. Установка для Windows (рекомендуется).** Скачать MongoDB Community
+Server с официального сайта, при установке отметить `Install MongoDB as a
+Service`, служба `MongoDB` стартует автоматически. Проверить и запустить:
+
+```powershell
+Get-Service MongoDB
+Start-Service MongoDB          # если остановлена
+mongosh --eval "db.runCommand({ ping: 1 })"   # ответ { ok: 1 }
+```
+
+**Способ 2. Запуск вручную из консоли.** Нужен каталог для данных:
+
+```powershell
+New-Item -ItemType Directory -Force "C:\data\db"
+& "C:\Program Files\MongoDB\Server\7.0\bin\mongod.exe" --dbpath "C:\data\db" --port 27017
+```
+
+Окно консоли оставить открытым: это и есть работающий сервер MongoDB.
+
+**Способ 3. Docker.**
+
+```bash
+docker run -d --name news-mongo -p 27017:27017 mongo:7
+```
+
+**Проверка, что сервер слушает порт:**
+
+```powershell
+Test-NetConnection localhost -Port 27017 | Select-Object TcpTestSucceeded
+```
+
+После этого запускать приложение обычным способом (`java -jar target/news-app.jar`).
+При старте `NoSqlDao` создаёт коллекцию `news_contents` в базе `newsdb`, и
+полный текст новостей сохраняется уже в MongoDB, а не в памяти. Остановить
+сервер: `Stop-Service MongoDB` (служба) или `Ctrl + C` (ручной запуск),
+`docker stop news-mongo` (Docker).
 
 ## Тестовые учётные записи
 
