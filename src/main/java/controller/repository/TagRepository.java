@@ -2,26 +2,31 @@ package controller.repository;
 
 import controller.tag.TagBO;
 import model.IdSequence;
+import model.dao.Database;
+import model.dao.SqlDao;
 import model.data.TagDO;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * Репозиторий бизнес-объекта «Тег» (ЛР6, паттерн «Репозиторий»).
+ * Репозиторий бизнес-объекта «Тег» (ЛР6, ЛР7).
  *
- * <p>Хранит теги в памяти в виде {@link TagDO}. Уникальность названия
- * обеспечивает контроллер, репозиторий отвечает только за хранение и
- * преобразование в бизнес-объекты.</p>
+ * <p>Хранит теги в реляционном хранилище SQLite в виде {@link TagDO}.
+ * Уникальность названия обеспечивает контроллер, репозиторий отвечает только
+ * за хранение и преобразование в бизнес-объекты через {@link SqlDao}.</p>
  */
 public class TagRepository implements IRepository<TagBO> {
 
-    private final ConcurrentSkipListMap<Long, TagDO> store = new ConcurrentSkipListMap<Long, TagDO>();
+    private final SqlDao<TagDO, Long> dao =
+            new SqlDao<TagDO, Long>(Database.sqlite(), TagDO.class, "tags", "id");
     private final IdSequence ids = new IdSequence();
 
     public TagRepository() {
-        seed();
+        if (dao.findAll().isEmpty()) {
+            seed();
+        }
+        ids.ensureAtLeast(nextId());
     }
 
     /** Тестовый набор данных (задача 3 ЛР6). */
@@ -32,13 +37,12 @@ public class TagRepository implements IRepository<TagBO> {
                 "культура", "архитектура", "кризис"}) {
             save(new TagBO((long) id++, name));
         }
-        ids.ensureAtLeast(id);
     }
 
     @Override
     public List<TagBO> findAll() {
         List<TagBO> result = new ArrayList<TagBO>();
-        for (TagDO entity : store.values()) {
+        for (TagDO entity : dao.findAll()) {
             result.add(toBO(entity));
         }
         return result;
@@ -46,10 +50,7 @@ public class TagRepository implements IRepository<TagBO> {
 
     @Override
     public TagBO findById(Long id) {
-        if (id == null) {
-            return null;
-        }
-        TagDO entity = store.get(id);
+        TagDO entity = dao.findById(id);
         return entity == null ? null : toBO(entity);
     }
 
@@ -61,13 +62,27 @@ public class TagRepository implements IRepository<TagBO> {
         if (item.getId() == null) {
             item.setId(ids.next());
         }
-        store.put(item.getId(), toDO(item));
+        dao.save(toDO(item));
         return item;
     }
 
     @Override
     public boolean delete(Long id) {
-        return id != null && store.remove(id) != null;
+        if (id == null || dao.findById(id) == null) {
+            return false;
+        }
+        dao.deleteById(id);
+        return true;
+    }
+
+    private long nextId() {
+        long max = 0L;
+        for (TagDO entity : dao.findAll()) {
+            if (entity.id != null && entity.id > max) {
+                max = entity.id;
+            }
+        }
+        return max + 1L;
     }
 
     private static TagBO toBO(TagDO entity) {

@@ -7,34 +7,36 @@ import controller.person.JournalistBO;
 import controller.person.UserBO;
 import controller.tag.TagBO;
 import model.IdSequence;
+import model.dao.Database;
+import model.dao.NoSqlDao;
+import model.dao.SqlDao;
 import model.data.NewsContentDO;
 import model.data.NewsDO;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * Репозиторий бизнес-объекта «Новость» (ЛР6, паттерн «Репозиторий»).
+ * Репозиторий бизнес-объекта «Новость» (ЛР6, ЛР7).
  *
  * <p>Новость разделена на две модели данных: {@link NewsDO} хранит «ядро +
- * превью» (всё, что нужно для списков), а {@link NewsContentDO} - полный
- * текст, который требуется только при открытии статьи. Первая модель
- * имитирует реляционное хранилище ({@code sqlStore}), вторая - документное
- * ({@code nosqlStore}). Связанные объекты (автор, категории, теги)
- * записываются идентификаторами, а при загрузке восстанавливаются из
- * соответствующих репозиториев.</p>
+ * превью» в реляционном хранилище SQLite, а {@link NewsContentDO} - полный
+ * текст в документном хранилище MongoDB. Начиная с ЛР7 вместо заглушек-карт
+ * используются DAO-классы: {@link SqlDao} и {@link NoSqlDao}. Если сервер
+ * MongoDB недоступен, контент временно хранится в памяти.</p>
  */
 public class NewsRepository implements IRepository<NewsBO> {
 
     private static final long DAY_MILLIS = 24L * 60L * 60L * 1000L;
 
-    /** «Реляционное» хранилище ядра и превью новости. */
-    private final ConcurrentSkipListMap<Long, NewsDO> sqlStore = new ConcurrentSkipListMap<Long, NewsDO>();
+    /** DAO реляционного хранилища ядра и превью новости. */
+    private final SqlDao<NewsDO, Long> sqlDao =
+            new SqlDao<NewsDO, Long>(Database.sqlite(), NewsDO.class, "news", "id");
 
-    /** «Документное» хранилище контента новости. */
-    private final ConcurrentSkipListMap<Long, NewsContentDO> nosqlStore = new ConcurrentSkipListMap<Long, NewsContentDO>();
+    /** DAO документного хранилища контента новости. */
+    private final NoSqlDao<NewsContentDO, Long> nosqlDao =
+            new NoSqlDao<NewsContentDO, Long>(Database.mongo(), NewsContentDO.class, "news_contents", "newsId");
 
     private final IdSequence ids = new IdSequence();
     private final CategoryRepository categoryRepository;
@@ -47,7 +49,10 @@ public class NewsRepository implements IRepository<NewsBO> {
         this.categoryRepository = categoryRepository;
         this.tagRepository = tagRepository;
         this.userRepository = userRepository;
-        seed();
+        if (sqlDao.findAll().isEmpty()) {
+            seed();
+        }
+        ids.ensureAtLeast(nextId());
     }
 
     /** Тестовый набор данных (задача 3 ЛР6). */
@@ -105,8 +110,6 @@ public class NewsRepository implements IRepository<NewsBO> {
                 "Материал в работе.",
                 "Этот материал ещё не опубликован и не отображается читателям.",
                 "Москва", 0, 0, false);
-
-        ids.ensureAtLeast(9L);
     }
 
     private void seedNews(long id, String categoryName, String[] tagNames,
@@ -139,7 +142,7 @@ public class NewsRepository implements IRepository<NewsBO> {
     @Override
     public List<NewsBO> findAll() {
         List<NewsBO> result = new ArrayList<NewsBO>();
-        for (NewsDO entity : sqlStore.values()) {
+        for (NewsDO entity : sqlDao.findAll()) {
             result.add(toBO(entity));
         }
         return result;
@@ -147,10 +150,7 @@ public class NewsRepository implements IRepository<NewsBO> {
 
     @Override
     public NewsBO findById(Long id) {
-        if (id == null) {
-            return null;
-        }
-        NewsDO entity = sqlStore.get(id);
+        NewsDO entity = sqlDao.findById(id);
         return entity == null ? null : toBO(entity);
     }
 
@@ -162,20 +162,29 @@ public class NewsRepository implements IRepository<NewsBO> {
         if (item.getId() == null) {
             item.setId(ids.next());
         }
-        NewsDO core = toCoreDO(item);
-        sqlStore.put(core.id, core);
-        NewsContentDO content = toContentDO(item);
-        nosqlStore.put(content.newsId, content);
+        sqlDao.save(toCoreDO(item));
+        nosqlDao.save(toContentDO(item));
         return item;
     }
 
     @Override
     public boolean delete(Long id) {
-        if (id == null) {
+        if (id == null || sqlDao.findById(id) == null) {
             return false;
         }
-        nosqlStore.remove(id);
-        return sqlStore.remove(id) != null;
+        sqlDao.deleteById(id);
+        nosqlDao.deleteById(id);
+        return true;
+    }
+
+    private long nextId() {
+        long max = 0L;
+        for (NewsDO entity : sqlDao.findAll()) {
+            if (entity.id != null && entity.id > max) {
+                max = entity.id;
+            }
+        }
+        return max + 1L;
     }
 
     private NewsBO toBO(NewsDO entity) {
@@ -210,7 +219,7 @@ public class NewsRepository implements IRepository<NewsBO> {
     }
 
     private String contentOf(Long newsId) {
-        NewsContentDO content = nosqlStore.get(newsId);
+        NewsContentDO content = nosqlDao.findById(newsId);
         return content == null ? null : content.text;
     }
 

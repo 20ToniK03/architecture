@@ -33,6 +33,18 @@
             <artifactId>resteasy-jackson2-provider</artifactId>
             <version>${resteasy.version}</version>
         </dependency>
+        <!-- ЛР7: драйвер SQLite (реляционное хранилище) -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.45.1.0</version>
+        </dependency>
+        <!-- ЛР7: официальный синхронный драйвер MongoDB (документное хранилище) -->
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongodb-driver-sync</artifactId>
+            <version>5.1.1</version>
+        </dependency>
     </dependencies>
 
     <build>

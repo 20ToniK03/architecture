@@ -32,7 +32,7 @@ public class WebAppServer {
         webServer.deploy(SingletonAPI.class);
 
         System.out.println("=================================================");
-        System.out.println(" Сервис новостей - лабораторные работы №1-6 (BO + Facade + Controllers + Repositories)");
+        System.out.println(" Сервис новостей - лабораторные работы №1-7 (BO + Facade + Controllers + Repositories + DAO)");
         System.out.println(" Клиентский интерфейс: http://" + HOST + ":" + PORT + "/");
         System.out.println(" API читателя:         http://" + HOST + ":" + PORT + "/reader/news/all");
         System.out.println(" API создателя:        http://" + HOST + ":" + PORT + "/creator/news");

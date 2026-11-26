@@ -5,20 +5,22 @@ import controller.person.JournalistBO;
 import controller.person.UserBO;
 import controller.role.RoleBO;
 import model.IdSequence;
+import model.dao.Database;
+import model.dao.SqlDao;
 import model.data.UserDO;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * Репозиторий бизнес-объекта «Пользователь» (ЛР6, паттерн «Репозиторий»).
+ * Репозиторий бизнес-объекта «Пользователь» (ЛР6, ЛР7).
  *
  * <p>Один DO-класс {@link UserDO} описывает все виды персон. Поле {@code type}
  * хранит конкретный класс бизнес-объекта, поэтому при загрузке восстанавливается
  * нужный наследник {@link UserBO}: журналист, администратор или обычный
- * пользователь. Роли восстанавливаются из {@link RoleRepository}.</p>
+ * пользователь. Роли восстанавливаются из {@link RoleRepository}, доступ к
+ * данным - через {@link SqlDao}.</p>
  */
 public class UserRepository implements IRepository<UserBO> {
 
@@ -35,13 +37,17 @@ public class UserRepository implements IRepository<UserBO> {
     private static final String TYPE_ADMIN = "ADMIN";
     private static final String TYPE_USER = "USER";
 
-    private final ConcurrentSkipListMap<Long, UserDO> store = new ConcurrentSkipListMap<Long, UserDO>();
+    private final SqlDao<UserDO, Long> dao =
+            new SqlDao<UserDO, Long>(Database.sqlite(), UserDO.class, "users", "id");
     private final IdSequence ids = new IdSequence();
     private final RoleRepository roleRepository;
 
     public UserRepository(RoleRepository roleRepository) {
         this.roleRepository = roleRepository;
-        seed();
+        if (dao.findAll().isEmpty()) {
+            seed();
+        }
+        ids.ensureAtLeast(nextId());
     }
 
     /** Тестовый набор данных (задача 3 ЛР6). */
@@ -61,14 +67,12 @@ public class UserRepository implements IRepository<UserBO> {
         admin.setPasswordHash("admin");
         admin.addRole(roleRepository.findById(4L));
         save(admin);
-
-        ids.ensureAtLeast(4L);
     }
 
     @Override
     public List<UserBO> findAll() {
         List<UserBO> result = new ArrayList<UserBO>();
-        for (UserDO entity : store.values()) {
+        for (UserDO entity : dao.findAll()) {
             result.add(toBO(entity));
         }
         return result;
@@ -76,10 +80,7 @@ public class UserRepository implements IRepository<UserBO> {
 
     @Override
     public UserBO findById(Long id) {
-        if (id == null) {
-            return null;
-        }
-        UserDO entity = store.get(id);
+        UserDO entity = dao.findById(id);
         return entity == null ? null : toBO(entity);
     }
 
@@ -91,13 +92,27 @@ public class UserRepository implements IRepository<UserBO> {
         if (item.getId() == null) {
             item.setId(ids.next());
         }
-        store.put(item.getId(), toDO(item));
+        dao.save(toDO(item));
         return item;
     }
 
     @Override
     public boolean delete(Long id) {
-        return id != null && store.remove(id) != null;
+        if (id == null || dao.findById(id) == null) {
+            return false;
+        }
+        dao.deleteById(id);
+        return true;
+    }
+
+    private long nextId() {
+        long max = 0L;
+        for (UserDO entity : dao.findAll()) {
+            if (entity.id != null && entity.id > max) {
+                max = entity.id;
+            }
+        }
+        return max + 1L;
     }
 
     private UserBO toBO(UserDO entity) {

@@ -2,27 +2,31 @@ package controller.repository;
 
 import controller.category.CategoryBO;
 import model.IdSequence;
+import model.dao.Database;
+import model.dao.SqlDao;
 import model.data.CategoryDO;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * Репозиторий бизнес-объекта «Категория» (ЛР6, паттерн «Репозиторий»).
+ * Репозиторий бизнес-объекта «Категория» (ЛР6, ЛР7).
  *
- * <p>Хранит категории в памяти в виде {@link CategoryDO} и преобразует их в
- * {@link CategoryBO} и обратно. Хранилище - потокобезопасная карта,
- * упорядоченная по идентификатору; в дальнейшем её можно заменить обращением
- * к настоящей СУБД, не меняя контроллер.</p>
+ * <p>Хранит категории в реляционном хранилище SQLite в виде {@link CategoryDO}
+ * и преобразует их в {@link CategoryBO} и обратно. Начиная с ЛР7 доступ к
+ * данным выполняется через {@link SqlDao}, а не через карту в памяти.</p>
  */
 public class CategoryRepository implements IRepository<CategoryBO> {
 
-    private final ConcurrentSkipListMap<Long, CategoryDO> store = new ConcurrentSkipListMap<Long, CategoryDO>();
+    private final SqlDao<CategoryDO, Long> dao =
+            new SqlDao<CategoryDO, Long>(Database.sqlite(), CategoryDO.class, "categories", "id");
     private final IdSequence ids = new IdSequence();
 
     public CategoryRepository() {
-        seed();
+        if (dao.findAll().isEmpty()) {
+            seed();
+        }
+        ids.ensureAtLeast(nextId());
     }
 
     /** Тестовый набор данных (задача 3 ЛР6). */
@@ -33,13 +37,12 @@ public class CategoryRepository implements IRepository<CategoryBO> {
         save(new CategoryBO(4L, "Наука", "Открытия, исследования и образование"));
         save(new CategoryBO(5L, "Экономика", "Финансы, бизнес и экономическая политика"));
         save(new CategoryBO(6L, "Культура", "Выставки, театр, музыка и кино"));
-        ids.ensureAtLeast(7L);
     }
 
     @Override
     public List<CategoryBO> findAll() {
         List<CategoryBO> result = new ArrayList<CategoryBO>();
-        for (CategoryDO entity : store.values()) {
+        for (CategoryDO entity : dao.findAll()) {
             result.add(toBO(entity));
         }
         return result;
@@ -47,10 +50,7 @@ public class CategoryRepository implements IRepository<CategoryBO> {
 
     @Override
     public CategoryBO findById(Long id) {
-        if (id == null) {
-            return null;
-        }
-        CategoryDO entity = store.get(id);
+        CategoryDO entity = dao.findById(id);
         return entity == null ? null : toBO(entity);
     }
 
@@ -62,13 +62,27 @@ public class CategoryRepository implements IRepository<CategoryBO> {
         if (item.getId() == null) {
             item.setId(ids.next());
         }
-        store.put(item.getId(), toDO(item));
+        dao.save(toDO(item));
         return item;
     }
 
     @Override
     public boolean delete(Long id) {
-        return id != null && store.remove(id) != null;
+        if (id == null || dao.findById(id) == null) {
+            return false;
+        }
+        dao.deleteById(id);
+        return true;
+    }
+
+    private long nextId() {
+        long max = 0L;
+        for (CategoryDO entity : dao.findAll()) {
+            if (entity.id != null && entity.id > max) {
+                max = entity.id;
+            }
+        }
+        return max + 1L;
     }
 
     private static CategoryBO toBO(CategoryDO entity) {

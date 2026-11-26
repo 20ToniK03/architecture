@@ -14,6 +14,7 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 | 4 | **ЛР4** | Интерфейс `NewsInterface`, контроллер `NewsController`, абстрактный `NewsDecorator` и `PositiveNewsDecorator` (фильтрация позитивных новостей); фасад выбирает декоратор по дате. | Decorator |
 | 5 | **ЛР5** | Контроллер на каждый бизнес-объект (`CategoryController`, `TagController`, `RoleController`, `FavoriteController`, `UserController`, `CommentController`, `NewsController`), потокобезопасные кэши БО, бизнес-правила `NewsBO` (`changeTitle`, `publish`); преобразование БО в DTO осталось в фасаде. | Facade, MVC |
 | 6 | **ЛР6** | Пакет `model/data` с DO-классами и пакет `controller/repository` с репозиторием на каждый контроллер; тестовые наборы данных лежат в репозиториях. `NewsBO` разделён на `NewsDO` (ядро + превью) и `NewsContentDO` (контент). | Repository |
+| 7 | **ЛР7** | Пакет `model/dao` с интерфейсом `IDao` и реализациями `SqlDao` (SQLite) и `NoSqlDao` (MongoDB); репозитории переведены с карт в памяти на DAO. Зависимости `sqlite-jdbc` и `mongodb-driver-sync`. | DAO |
 
 ---
 
@@ -176,7 +177,42 @@ REST-сервис новостей на **Java 8 + RESTEasy + Undertow**. Это
 
 ---
 
-## Полный API (по итогам ЛР1-6)
+## Лабораторная работа №7 - доступ к данным через DAO
+
+**Цель:** заменить in-memory-хранилища в репозиториях на доступ к настоящим
+СУБД через слой DAO (паттерн Data Access Object).
+
+1. Создан пакет `model/dao` с DAO-классами:
+   * `IDao<T, ID>` - базовый интерфейс доступа к данным (`save`, `findById`,
+     `findAll`, `deleteById`); дженерики позволяют использовать один класс для
+     разных DO-классов;
+   * `SqlDao<T, ID>` - DAO для реляционного хранилища **SQLite**: таблица
+     создаётся автоматически по полям DO-класса, списки (`List<Long>`,
+     `List<String>`) хранятся в `TEXT` как JSON;
+   * `NoSqlDao<T, ID>` - DAO для документного хранилища **MongoDB**: каждое
+     поле DO-класса становится ключом BSON-документа;
+   * `Database` - настройки подключения: открывает соединение SQLite и MongoDB.
+2. Добавлены настройки подключения к СУБД:
+   * в `pom.xml` - зависимости `sqlite-jdbc` (3.45.1.0) и `mongodb-driver-sync` (5.1.1);
+   * `Database.SQLITE_URL = jdbc:sqlite:news.db` - файл базы создаётся рядом с приложением;
+   * `Database.MONGO_URI = mongodb://localhost:27017`, имя базы `newsdb`.
+3. Репозитории переведены с карт в памяти на DAO: `NewsRepository` держит
+   `sqlDao` (ядро `NewsDO`) и `nosqlDao` (контент `NewsContentDO`), остальные
+   репозитории - по одному `sqlDao`. Тестовые наборы записываются в БД при
+   первом запуске (если БД пуста), а данные, созданные через HTML-интерфейс,
+   сразу сохраняются в БД.
+4. Если сервер MongoDB не запущен, `NoSqlDao` прозрачно переключается на
+   временное хранилище в памяти: приложение остаётся работоспособным, а SQLite
+   продолжает сохранять «ядро» новостей и остальные сущности.
+
+**Проверка:** после запуска в рабочем каталоге появляется файл `news.db`
+(SQLite) с таблицами `roles`, `users`, `categories`, `tags`, `news`, `comments`,
+`favorites`, заполненными тестовыми данными. При запущенном MongoDB контент
+новостей сохраняется в коллекцию `news_contents` базы `newsdb`.
+
+---
+
+## Полный API (по итогам ЛР1-7)
 
 ### ReaderAPI - `/reader`
 
@@ -231,7 +267,8 @@ news-app/
 └── src/main/
     ├── java/
     │   ├── model/                # IdSequence, InMemoryStore (кэш БО)
-    │   │   └── data/             # DO-классы: NewsDO, NewsContentDO, CategoryDO, TagDO, RoleDO, UserDO, CommentDO, FavoriteDO
+    │   │   ├── data/             # DO-классы: NewsDO, NewsContentDO, CategoryDO, TagDO, RoleDO, UserDO, CommentDO, FavoriteDO
+    │   │   └── dao/              # IDao, SqlDao (SQLite), NoSqlDao (MongoDB), Database (подключение)
     │   ├── controller/           # FacadeController, контроллеры БО
     │   │   ├── repository/       # IRepository, NewsRepository, CategoryRepository, TagRepository, RoleRepository, UserRepository, CommentRepository, FavoriteRepository
     │   │   ├── news/             # NewsBO, NewsController, NewsInterface, NewsData, NewsStatus
@@ -258,6 +295,16 @@ java -jar target/news-app.jar
 
 * Клиентский интерфейс: **http://localhost:8080/**
 * Тестер API: **http://localhost:8080/static/tester.html**
+
+### Хранилища данных (ЛР7)
+
+* **SQLite** - файл `news.db` создаётся автоматически в рабочем каталоге при
+  первом запуске и хранит роли, пользователей, категории, теги, новости
+  (ядро), комментарии и избранное. Дополнительная настройка не нужна.
+* **MongoDB** - используется для контента новостей (коллекция `news_contents`
+  базы `newsdb`). Перед запуском нужно поднять сервер MongoDB на
+  `localhost:27017`. Если сервер недоступен, контент временно хранится в
+  памяти, и приложение продолжает работать.
 
 ## Тестовые учётные записи
 

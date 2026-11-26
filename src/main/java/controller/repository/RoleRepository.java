@@ -2,26 +2,32 @@ package controller.repository;
 
 import controller.role.RoleBO;
 import model.IdSequence;
+import model.dao.Database;
+import model.dao.SqlDao;
 import model.data.RoleDO;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * Репозиторий бизнес-объекта «Роль» (ЛР6, паттерн «Репозиторий»).
+ * Репозиторий бизнес-объекта «Роль» (ЛР6, ЛР7).
  *
- * <p>Хранит роли в памяти в виде {@link RoleDO}. Список прав - простой список
- * строк внутри DO-класса.</p>
+ * <p>Хранит роли в реляционном хранилище SQLite в виде {@link RoleDO}.
+ * Список прав - простой список строк внутри DO-класса, доступ к данным -
+ * через {@link SqlDao}.</p>
  */
 public class RoleRepository implements IRepository<RoleBO> {
 
-    private final ConcurrentSkipListMap<Long, RoleDO> store = new ConcurrentSkipListMap<Long, RoleDO>();
+    private final SqlDao<RoleDO, Long> dao =
+            new SqlDao<RoleDO, Long>(Database.sqlite(), RoleDO.class, "roles", "id");
     private final IdSequence ids = new IdSequence();
 
     public RoleRepository() {
-        seed();
+        if (dao.findAll().isEmpty()) {
+            seed();
+        }
+        ids.ensureAtLeast(nextId());
     }
 
     /** Тестовый набор данных (задача 3 ЛР6). */
@@ -30,13 +36,12 @@ public class RoleRepository implements IRepository<RoleBO> {
         save(new RoleBO(2L, "USER", Arrays.asList("news.view", "news.comment", "news.favorite")));
         save(new RoleBO(3L, "JOURNALIST", Arrays.asList("news.view", "news.create", "news.edit", "news.delete")));
         save(new RoleBO(4L, "ADMIN", Arrays.asList("user.block", "user.role", "comment.moderate")));
-        ids.ensureAtLeast(5L);
     }
 
     @Override
     public List<RoleBO> findAll() {
         List<RoleBO> result = new ArrayList<RoleBO>();
-        for (RoleDO entity : store.values()) {
+        for (RoleDO entity : dao.findAll()) {
             result.add(toBO(entity));
         }
         return result;
@@ -44,10 +49,7 @@ public class RoleRepository implements IRepository<RoleBO> {
 
     @Override
     public RoleBO findById(Long id) {
-        if (id == null) {
-            return null;
-        }
-        RoleDO entity = store.get(id);
+        RoleDO entity = dao.findById(id);
         return entity == null ? null : toBO(entity);
     }
 
@@ -59,13 +61,27 @@ public class RoleRepository implements IRepository<RoleBO> {
         if (item.getId() == null) {
             item.setId(ids.next());
         }
-        store.put(item.getId(), toDO(item));
+        dao.save(toDO(item));
         return item;
     }
 
     @Override
     public boolean delete(Long id) {
-        return id != null && store.remove(id) != null;
+        if (id == null || dao.findById(id) == null) {
+            return false;
+        }
+        dao.deleteById(id);
+        return true;
+    }
+
+    private long nextId() {
+        long max = 0L;
+        for (RoleDO entity : dao.findAll()) {
+            if (entity.id != null && entity.id > max) {
+                max = entity.id;
+            }
+        }
+        return max + 1L;
     }
 
     private static RoleBO toBO(RoleDO entity) {

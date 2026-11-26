@@ -3,29 +3,35 @@ package controller.repository;
 import controller.comment.CommentBO;
 import controller.person.UserBO;
 import model.IdSequence;
+import model.dao.Database;
+import model.dao.SqlDao;
 import model.data.CommentDO;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * Репозиторий бизнес-объекта «Комментарий» (ЛР6, паттерн «Репозиторий»).
+ * Репозиторий бизнес-объекта «Комментарий» (ЛР6, ЛР7).
  *
- * <p>Хранит комментарии в виде {@link CommentDO}. Связи с новостью и автором
- * хранятся идентификаторами: новость и пользователь живут в своих
- * репозиториях. Автор восстанавливается из {@link UserRepository}.</p>
+ * <p>Хранит комментарии в реляционном хранилище SQLite в виде {@link CommentDO}.
+ * Связи с новостью и автором хранятся идентификаторами: новость и пользователь
+ * живут в своих репозиториях. Автор восстанавливается из {@link UserRepository},
+ * доступ к данным - через {@link SqlDao}.</p>
  */
 public class CommentRepository implements IRepository<CommentBO> {
 
-    private final ConcurrentSkipListMap<Long, CommentDO> store = new ConcurrentSkipListMap<Long, CommentDO>();
+    private final SqlDao<CommentDO, Long> dao =
+            new SqlDao<CommentDO, Long>(Database.sqlite(), CommentDO.class, "comments", "id");
     private final IdSequence ids = new IdSequence();
     private final UserRepository userRepository;
 
     public CommentRepository(UserRepository userRepository) {
         this.userRepository = userRepository;
-        seed();
+        if (dao.findAll().isEmpty()) {
+            seed();
+        }
+        ids.ensureAtLeast(nextId());
     }
 
     /** Тестовый набор данных (задача 3 ЛР6). */
@@ -36,13 +42,12 @@ public class CommentRepository implements IRepository<CommentBO> {
                     "Отличная новость, давно ждал обновления портала!",
                     new Date(), reader));
         }
-        ids.ensureAtLeast(2L);
     }
 
     @Override
     public List<CommentBO> findAll() {
         List<CommentBO> result = new ArrayList<CommentBO>();
-        for (CommentDO entity : store.values()) {
+        for (CommentDO entity : dao.findAll()) {
             result.add(toBO(entity));
         }
         return result;
@@ -50,10 +55,7 @@ public class CommentRepository implements IRepository<CommentBO> {
 
     @Override
     public CommentBO findById(Long id) {
-        if (id == null) {
-            return null;
-        }
-        CommentDO entity = store.get(id);
+        CommentDO entity = dao.findById(id);
         return entity == null ? null : toBO(entity);
     }
 
@@ -65,13 +67,27 @@ public class CommentRepository implements IRepository<CommentBO> {
         if (item.getId() == null) {
             item.setId(ids.next());
         }
-        store.put(item.getId(), toDO(item));
+        dao.save(toDO(item));
         return item;
     }
 
     @Override
     public boolean delete(Long id) {
-        return id != null && store.remove(id) != null;
+        if (id == null || dao.findById(id) == null) {
+            return false;
+        }
+        dao.deleteById(id);
+        return true;
+    }
+
+    private long nextId() {
+        long max = 0L;
+        for (CommentDO entity : dao.findAll()) {
+            if (entity.id != null && entity.id > max) {
+                max = entity.id;
+            }
+        }
+        return max + 1L;
     }
 
     private CommentBO toBO(CommentDO entity) {

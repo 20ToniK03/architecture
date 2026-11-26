@@ -2,35 +2,37 @@ package controller.repository;
 
 import controller.favorite.FavoriteBO;
 import model.IdSequence;
+import model.dao.Database;
+import model.dao.SqlDao;
 import model.data.FavoriteDO;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * Репозиторий бизнес-объекта «Избранное» (ЛР6, паттерн «Репозиторий»).
+ * Репозиторий бизнес-объекта «Избранное» (ЛР6, ЛР7).
  *
- * <p>Хранит связи «пользователь - новость» в виде {@link FavoriteDO}. Ссылки
- * хранятся идентификаторами, поэтому сам пользователь и новость живут в своих
- * репозиториях. Тестовый набор пуст: избранное появляется только при работе
- * пользователя с сервисом.</p>
+ * <p>Хранит связи «пользователь - новость» в реляционном хранилище SQLite в
+ * виде {@link FavoriteDO}. Ссылки хранятся идентификаторами, поэтому сам
+ * пользователь и новость живут в своих репозиториях. Тестовый набор пуст:
+ * избранное появляется только при работе пользователя с сервисом.</p>
  */
 public class FavoriteRepository implements IRepository<FavoriteBO> {
 
-    private final ConcurrentSkipListMap<Long, FavoriteDO> store = new ConcurrentSkipListMap<Long, FavoriteDO>();
+    private final SqlDao<FavoriteDO, Long> dao =
+            new SqlDao<FavoriteDO, Long>(Database.sqlite(), FavoriteDO.class, "favorites", "id");
     private final IdSequence ids = new IdSequence();
 
     public FavoriteRepository() {
         // Тестовый набор данных пуст (задача 3 ЛР6).
-        ids.ensureAtLeast(1L);
+        ids.ensureAtLeast(nextId());
     }
 
     @Override
     public List<FavoriteBO> findAll() {
         List<FavoriteBO> result = new ArrayList<FavoriteBO>();
-        for (FavoriteDO entity : store.values()) {
+        for (FavoriteDO entity : dao.findAll()) {
             result.add(toBO(entity));
         }
         return result;
@@ -38,10 +40,7 @@ public class FavoriteRepository implements IRepository<FavoriteBO> {
 
     @Override
     public FavoriteBO findById(Long id) {
-        if (id == null) {
-            return null;
-        }
-        FavoriteDO entity = store.get(id);
+        FavoriteDO entity = dao.findById(id);
         return entity == null ? null : toBO(entity);
     }
 
@@ -53,13 +52,27 @@ public class FavoriteRepository implements IRepository<FavoriteBO> {
         if (item.getId() == null) {
             item.setId(ids.next());
         }
-        store.put(item.getId(), toDO(item));
+        dao.save(toDO(item));
         return item;
     }
 
     @Override
     public boolean delete(Long id) {
-        return id != null && store.remove(id) != null;
+        if (id == null || dao.findById(id) == null) {
+            return false;
+        }
+        dao.deleteById(id);
+        return true;
+    }
+
+    private long nextId() {
+        long max = 0L;
+        for (FavoriteDO entity : dao.findAll()) {
+            if (entity.id != null && entity.id > max) {
+                max = entity.id;
+            }
+        }
+        return max + 1L;
     }
 
     private static FavoriteBO toBO(FavoriteDO entity) {
