@@ -293,6 +293,68 @@ Repository и DAO. Новость разделена на две модели д
 
 ---
 
+## Архитектура и путь запроса
+
+### Три слоя
+
+Проект разделён на три слоя, зависимости направлены сверху вниз
+(`view → controller → model`): верхний слой знает только о слое под ним.
+
+| Слой | Пакет | Отвечает за |
+|------|-------|-------------|
+| представление | `view` | REST-интерфейсы, DTO, веб-сервер Undertow |
+| бизнес-логика | `controller` | бизнес-объекты, контроллеры, фасад, декоратор, репозитории |
+| данные | `model` | DO-классы, DAO, подключение к SQLite и MongoDB |
+
+### Паттерны
+
+| Паттерн | Где | Роль |
+|---------|-----|------|
+| Singleton | `SingletonAPI`, `FacadeController`, `Database` | один экземпляр на приложение |
+| DTO | `view/api/dto/*` | плоские структуры для обмена с клиентом |
+| Facade | `FacadeController` | единый вход в бизнес-логику |
+| MVC | три слоя | Model = BO, View = API + DTO, Controller = контроллеры |
+| Decorator | `NewsDecorator`, `PositiveNewsDecorator` | оборачивает `NewsController`, фильтрует негативные новости |
+| Repository | `controller/repository/*` | слой доступа к данным поверх BO |
+| DAO | `model/dao/*` | доступ к конкретной СУБД через DO-классы |
+
+Цепочка хранения: `NewsBO → NewsRepository → NewsDO (ядро) → SqlDao → SQLite`
+и `NewsBO → NewsRepository → NewsContentDO (контент) → NoSqlDao → MongoDB`.
+
+### Путь запроса на чтение (GET /reader/news/all)
+
+1. Undertow принимает запрос, JAX-RS по `@Path` находит метод `ReaderAPI.getAllNews()`.
+2. `ReaderAPI` вызывает `FacadeController.getInstance().getAllNews()`.
+3. Фасад вызывает `newsController.findVisible()` (за интерфейсом `NewsInterface` может
+   стоять `PositiveNewsDecorator`, отфильтровывающий негативные новости).
+4. `NewsController` читает свой кэш `InMemoryStore<NewsBO>`, заполненный при старте
+   из `NewsRepository`, и отбирает только опубликованные.
+5. Фасад преобразует `List<NewsBO>` в `List<NewsTitleDTO>` и сортирует по дате.
+6. `ReaderAPI` заворачивает список в `NewsListDTO`, Jackson сериализует в JSON → `200`.
+
+### Путь запроса на запись (POST /creator/news)
+
+1. JAX-RS находит `CreatorAPI.createNews()`, Jackson десериализует тело в
+   `CreateNewsRequestDTO`.
+2. Фасад находит категорию, собирает `NewsData` и вызывает `newsController.create(data)`.
+3. `NewsController` создаёт `NewsBO`, связывает категории и теги, сохраняет через
+   `NewsRepository` и кладёт в кэш.
+4. Фасад публикует новость: `NewsBO.publish()` проверяет заголовок и ставит `PUBLISHED`.
+5. `NewsRepository.save()` делит новость на два DO: `NewsDO` уходит в `SqlDao`
+   (SQLite, `INSERT OR REPLACE`), `NewsContentDO` - в `NoSqlDao` (MongoDB).
+6. Фасад преобразует `NewsBO` в `NewsItemDTO`, `CreatorAPI` отвечает `201` с JSON.
+
+### Как слои общаются
+
+* API ↔ Фасад - только DTO; фасад ↔ контроллер - BO и входные данные;
+* контроллер ↔ репозиторий - BO (кэш и бизнес-правила в контроллере, хранение в репозитории);
+* репозиторий ↔ DAO - DO (репозиторий делает маппинг `BO ↔ DO` и восстанавливает
+  связанные объекты по идентификаторам);
+* DAO ↔ СУБД - SQL через JDBC и документы через драйвер MongoDB (таблицы и
+  документы строятся рефлексией по полям DO-класса).
+
+---
+
 ## Структура проекта
 
 ```
