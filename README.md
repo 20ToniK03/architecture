@@ -355,6 +355,85 @@ Repository и DAO. Новость разделена на две модели д
 
 ---
 
+## Модули и их назначение
+
+### Слой представления `view`
+
+* `WebAppServer` - запуск встроенного сервера Undertow на `localhost:8080`,
+  раздача статики по префиксу `/static`, деплой JAX-RS-приложения.
+* `api/SingletonAPI` - JAX-RS `Application`: отдаёт ровно по одному экземпляру
+  каждого API (паттерн Singleton) и регистрирует `JacksonJsonProvider` + CORS.
+* `api/ReaderAPI` (`/reader`) - методы читателя: лента, поиск, регион, категории,
+  регистрация/вход, комментарии, избранное.
+* `api/CreatorAPI` (`/creator`) - методы журналиста: создать/изменить/удалить
+  новость, публикация, снятие с публикации, архив, теги, медиа.
+* `api/AdminAPI` (`/admin`) - методы администратора: пользователи, роли,
+  блокировка, назначение роли, модерация комментариев.
+* `api/StaticPageAPI` (`/`) - отдаёт главную страницу `static/index.html`.
+* `api/dto/*` - DTO запросов (`CreateNewsRequestDTO`, `UpdateNewsRequestDTO`,
+  `CreateCommentRequestDTO`, `UpdateCommentRequestDTO`) и ответов (`NewsItemDTO`,
+  `NewsTitleDTO`, `NewsListDTO`, `CategoryDTO`, `CategoryListDTO`, `CommentDTO`,
+  `UserDTO`, `UserListDTO`, `RoleDTO`, `RoleListDTO`, `ActionStatusDTO`).
+
+### Слой бизнес-логики `controller`
+
+* `FacadeController` - фасад: единая точка входа для API, связывает контроллеры
+  и преобразует DTO ↔ BO (паттерны Facade + MVC).
+* `news/NewsBO` - бизнес-объект «Новость»: жизненный цикл публикации, изменение
+  заголовка, теги, категории, комментарии (правила: заголовок не меняется у
+  опубликованной, пустой заголовок запрещён).
+* `news/NewsController` - существование новостей: кэш, создание, изменение,
+  удаление, публикация/архив, поиск и фильтры.
+* `news/NewsInterface` - интерфейс контроллера новостей (для паттерна Decorator).
+* `news/NewsData` - входные данные создания/редактирования новости.
+* `news/NewsStatus` - enum состояний: `DRAFT`, `PUBLISHED`, `EDITED`, `ARCHIVED`, `DELETED`.
+* `news/decor/NewsDecorator` - абстрактный декоратор, делегирует всё контроллеру.
+* `news/decor/PositiveNewsDecorator` - декоратор, отфильтровывающий новости с
+  негативными словами в заголовке.
+* `category/CategoryBO` + `CategoryController` - категории и их контроллер.
+* `tag/TagBO` + `TagController` - теги (уникальные по названию) и их контроллер.
+* `comment/CommentBO` + `CommentController` - комментарии, модерация, контроллер.
+* `favorite/FavoriteBO` + `FavoriteController` - избранное «пользователь-новость».
+* `role/RoleBO` + `RoleController` - роли с правами и их контроллер.
+* `person/PersonBO` - абстрактная персона (id, имя, email, пароль, вход).
+* `person/GuestBO`, `person/UserBO`, `person/JournalistBO`, `person/AdminBO` -
+  иерархия персон (`Person → Guest`, `Person → User → Journalist/Admin`).
+* `person/UserController` - регистрация, вход, блокировка, назначение ролей.
+* `person/RegistrationData` - входные данные регистрации.
+* `interfaces/IAuthorizable`, `interfaces/ICommentable`, `interfaces/IPublishable` -
+  интерфейсы-контракты бизнес-объектов.
+* `repository/IRepository` - общий интерфейс репозитория (`findAll`, `findById`,
+  `save`, `delete`).
+* `repository/NewsRepository`, `CategoryRepository`, `TagRepository`,
+  `RoleRepository`, `UserRepository`, `CommentRepository`, `FavoriteRepository` -
+  по репозиторию на каждый бизнес-объект: маппинг BO ↔ DO, тестовые данные,
+  выдача идентификаторов.
+
+### Слой данных `model`
+
+* `IdSequence` - потокобезопасный генератор идентификаторов.
+* `InMemoryStore` - потокобезопасный кэш бизнес-объектов (`ConcurrentSkipListMap`).
+* `data/NewsDO` - DO «ядро + превью» новости (заголовок, анонс, регион, статус,
+  ссылки на автора/категории/теги по id) - хранится в SQLite.
+* `data/NewsContentDO` - DO «контент» новости (полный текст) - хранится в MongoDB.
+* `data/CategoryDO`, `data/TagDO`, `data/RoleDO`, `data/UserDO`,
+  `data/CommentDO`, `data/FavoriteDO` - DO-классы остальных сущностей.
+* `dao/IDao` - дженерик-интерфейс доступа к данным (`save`, `findById`,
+  `findAll`, `deleteById`).
+* `dao/SqlDao` - DAO для SQLite: строит таблицу по полям DO-класса рефлексией,
+  списки хранит в `TEXT` как JSON.
+* `dao/NoSqlDao` - DAO для MongoDB: маппит DO ↔ BSON-документ; при недоступности
+  MongoDB переключается на хранилище в памяти.
+* `dao/Database` - настройки подключения: открывает соединение SQLite и MongoDB.
+
+### Статика `resources/static`
+
+* `index.html` - клиентский веб-интерфейс (вкладки: лента, избранное,
+  публикация, комментарии, администрирование).
+* `tester.html` - тестер API (ручные запросы ко всем эндпоинтам).
+
+---
+
 ## Структура проекта
 
 ```
