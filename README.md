@@ -438,28 +438,88 @@ Repository и DAO. Новость разделена на две модели д
 
 ```
 news-app/
-├── pom.xml
-├── requests.http
+├── pom.xml                          # Maven: RESTEasy, sqlite-jdbc, mongodb-driver-sync
+├── .gitignore                       # target/, *.db
+├── requests.http                    # HTTP-запросы для ручного тестирования
 └── src/main/
     ├── java/
-    │   ├── model/                # IdSequence, InMemoryStore (кэш БО)
-    │   │   ├── data/             # DO-классы: NewsDO, NewsContentDO, CategoryDO, TagDO, RoleDO, UserDO, CommentDO, FavoriteDO
-    │   │   └── dao/              # IDao, SqlDao (SQLite), NoSqlDao (MongoDB), Database (подключение)
-    │   ├── controller/           # FacadeController, контроллеры БО
-    │   │   ├── repository/       # IRepository, NewsRepository, CategoryRepository, TagRepository, RoleRepository, UserRepository, CommentRepository, FavoriteRepository
-    │   │   ├── news/             # NewsBO, NewsController, NewsInterface, NewsData, NewsStatus
-    │   │   │   └── decor/        # NewsDecorator, PositiveNewsDecorator
-    │   │   ├── person/           # PersonBO, GuestBO, UserBO, JournalistBO, AdminBO, UserController
-    │   │   ├── category/         # CategoryBO, CategoryController
-    │   │   ├── tag/              # TagBO, TagController
-    │   │   ├── comment/          # CommentBO, CommentController
-    │   │   ├── favorite/         # FavoriteBO, FavoriteController
-    │   │   ├── role/             # RoleBO, RoleController
-    │   │   └── interfaces/       # IAuthorizable, ICommentable, IPublishable
-    │   └── view/
-    │       ├── WebAppServer.java # запуск Undertow (localhost:8080)
-    │       └── api/              # ReaderAPI, CreatorAPI, AdminAPI, StaticPageAPI, SingletonAPI, dto/
-    └── resources/static/         # index.html (UI), tester.html (тестер API)
+    │   ├── model/                   # слой данных
+    │   │   ├── IdSequence.java      # генератор идентификаторов
+    │   │   ├── InMemoryStore.java   # потокобезопасный кэш бизнес-объектов
+    │   │   ├── data/                # DO-классы (модель хранения)
+    │   │   │   ├── NewsDO.java      # ядро + превью новости (SQLite)
+    │   │   │   ├── NewsContentDO.java  # контент новости (MongoDB)
+    │   │   │   ├── CategoryDO.java
+    │   │   │   ├── TagDO.java
+    │   │   │   ├── RoleDO.java
+    │   │   │   ├── UserDO.java
+    │   │   │   ├── CommentDO.java
+    │   │   │   └── FavoriteDO.java
+    │   │   └── dao/                 # DAO - доступ к СУБД
+    │   │       ├── IDao.java        # интерфейс DAO (дженерик)
+    │   │       ├── SqlDao.java      # SQLite (таблица по полям DO)
+    │   │       ├── NoSqlDao.java    # MongoDB (+ фолбэк в память)
+    │   │       └── Database.java    # подключения SQLite / MongoDB
+    │   ├── controller/              # слой бизнес-логики
+    │   │   ├── FacadeController.java  # фасад (DTO ↔ BO)
+    │   │   ├── repository/          # репозитории (по одному на БО)
+    │   │   │   ├── IRepository.java
+    │   │   │   ├── NewsRepository.java
+    │   │   │   ├── CategoryRepository.java
+    │   │   │   ├── TagRepository.java
+    │   │   │   ├── RoleRepository.java
+    │   │   │   ├── UserRepository.java
+    │   │   │   ├── CommentRepository.java
+    │   │   │   └── FavoriteRepository.java
+    │   │   ├── news/                # новость
+    │   │   │   ├── NewsBO.java
+    │   │   │   ├── NewsController.java
+    │   │   │   ├── NewsInterface.java
+    │   │   │   ├── NewsData.java
+    │   │   │   ├── NewsStatus.java
+    │   │   │   └── decor/           # NewsDecorator, PositiveNewsDecorator
+    │   │   ├── person/              # персоны
+    │   │   │   ├── PersonBO.java
+    │   │   │   ├── GuestBO.java
+    │   │   │   ├── UserBO.java
+    │   │   │   ├── JournalistBO.java
+    │   │   │   ├── AdminBO.java
+    │   │   │   ├── UserController.java
+    │   │   │   └── RegistrationData.java
+    │   │   ├── category/            # CategoryBO, CategoryController
+    │   │   ├── tag/                 # TagBO, TagController
+    │   │   ├── comment/             # CommentBO, CommentController
+    │   │   ├── favorite/            # FavoriteBO, FavoriteController
+    │   │   ├── role/                # RoleBO, RoleController
+    │   │   └── interfaces/          # IAuthorizable, ICommentable, IPublishable
+    │   └── view/                    # слой представления
+    │       ├── WebAppServer.java    # запуск Undertow (localhost:8080)
+    │       └── api/                 # JAX-RS ресурсы
+    │           ├── SingletonAPI.java  # JAX-RS Application (синглтон)
+    │           ├── ReaderAPI.java   # /reader
+    │           ├── CreatorAPI.java  # /creator
+    │           ├── AdminAPI.java    # /admin
+    │           ├── StaticPageAPI.java  # / (главная страница)
+    │           └── dto/             # DTO запросов и ответов
+    │               ├── NewsItemDTO.java
+    │               ├── NewsTitleDTO.java
+    │               ├── NewsListDTO.java
+    │               ├── CategoryDTO.java
+    │               ├── CategoryListDTO.java
+    │               ├── CommentDTO.java
+    │               ├── UserDTO.java
+    │               ├── UserListDTO.java
+    │               ├── RoleDTO.java
+    │               ├── RoleListDTO.java
+    │               ├── ActionStatusDTO.java
+    │               ├── CreateNewsRequestDTO.java
+    │               ├── UpdateNewsRequestDTO.java
+    │               ├── CreateCommentRequestDTO.java
+    │               └── UpdateCommentRequestDTO.java
+    └── resources/
+        └── static/                  # статика
+            ├── index.html           # клиентский интерфейс (вкладки)
+            └── tester.html          # тестер API
 ```
 
 ## Запуск
